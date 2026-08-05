@@ -1,6 +1,6 @@
 export type SttComparisonModel = {
   id: string;
-  kind: "audio-chat" | "realtime";
+  kind: "realtime";
   label: string;
   model: string;
 };
@@ -35,12 +35,6 @@ export const STT_PLAYGROUND_FALLBACK_MODELS: SttComparisonModel[] = [
     kind: "realtime",
     label: "Nemotron 3.5 ASR Streaming 0.6B",
     model: "nvidia/nemotron-3.5-asr-streaming-0.6b",
-  },
-  {
-    id: "inkling",
-    kind: "audio-chat",
-    label: "Inkling FP4",
-    model: "thinkingmachines/inkling",
   },
 ];
 

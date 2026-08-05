@@ -29,12 +29,16 @@ export function VoiceSettingsPanel({
         Model stack
       </div>
       <p className="mt-2 text-xs leading-5 text-[#050505]/52">
-        One model listens and writes the reply.
+        One model listens, another writes the reply.
       </p>
       <dl className="mt-4 space-y-3 text-sm">
         <div className="flex items-center justify-between gap-4">
-          <dt className="text-[#050505]/52">Listen + reply</dt>
-          <dd className="text-right font-medium text-[#050505]">Inkling</dd>
+          <dt className="text-[#050505]/52">Listen</dt>
+          <dd className="text-right font-medium text-[#050505]">Parakeet / Whisper</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <dt className="text-[#050505]/52">Reply</dt>
+          <dd className="text-right font-medium text-[#050505]">Nemotron Ultra / MiniMax M2.7</dd>
         </div>
         <div className="flex items-center justify-between gap-4">
           <dt className="text-[#050505]/52">Voice</dt>

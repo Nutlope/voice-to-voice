@@ -5,7 +5,7 @@ import {
   transcribeSttComparisonModel,
 } from "./stt-comparison";
 
-test("lists every public serverless STT model and keeps Inkling visible", async () => {
+test("lists every public serverless STT model", async () => {
   const models = await getSttComparisonModels({
     apiKey: "test-key",
     now: () => 10_000,
@@ -18,18 +18,13 @@ test("lists every public serverless STT model and keeps Inkling visible", async 
           { id: "user/private-asr", type: "transcribe", created: 1 },
           { id: "Qwen/Qwen3.5-9B", type: "chat", created: 0 },
         ],
-      })) as typeof fetch,
+      })) as unknown as typeof fetch,
   });
 
   expect(models.map((model) => model.id)).toEqual([
     "nvidia/nemotron-3.5-asr-streaming-0.6b",
     "openai/whisper-large-v3",
-    "inkling",
   ]);
-  expect(models.at(-1)).toMatchObject({
-    kind: "audio-chat",
-    model: "thinkingmachines/inkling",
-  });
 });
 
 test("transcribes one requested model without waiting for a slow sibling", async () => {
@@ -50,9 +45,6 @@ test("transcribes one requested model without waiting for a slow sibling", async
         expect(model).toBe("openai/whisper-large-v3");
         return "Hello from Whisper";
       },
-      transcribeAudioChat: async () => {
-        throw new Error("Audio chat must not be called for the Whisper request.");
-      },
     },
   );
 
@@ -67,20 +59,20 @@ test("returns a card-local error instead of throwing", async () => {
   const result = await transcribeSttComparisonModel(
     new Uint8Array([1, 0]),
     {
-      id: "inkling",
-      kind: "audio-chat",
-      label: "Inkling",
-      model: "thinkingmachines/inkling",
+      id: "openai/whisper-large-v3",
+      kind: "realtime",
+      label: "Whisper Large v3",
+      model: "openai/whisper-large-v3",
     },
     "test-key",
     {
-      transcribeAudioChat: async () => {
-        throw new Error("Inkling unavailable");
+      transcribeRealtime: async () => {
+        throw new Error("Whisper unavailable");
       },
     },
   );
 
-  expect(result.error).toBe("Inkling unavailable");
+  expect(result.error).toBe("Whisper unavailable");
   expect(result.transcript).toBe("");
 });
 

@@ -23,8 +23,7 @@
 // Only external dependency is 'ws' (already installed). Run with Bun.
 //
 // Usage:
-//   bun scripts/e2e-voice-latency.mjs https://your-app.vercel.app --pipeline classic
-//   bun scripts/e2e-voice-latency.mjs https://your-app.vercel.app --pipeline inkling
+//   bun scripts/e2e-voice-latency.mjs https://your-app.vercel.app
 //
 // If test-fixtures/hello-16k.pcm is missing it is synthesized once via Together
 // REST TTS (needs TOGETHER_API_KEY, auto-loaded from ./.env). Env overrides:
@@ -123,7 +122,7 @@ function readNetscapeCookieHeader(file) {
 //   https://host        -> wss://host/api/voice
 //   https://host/api/x  -> wss://host/api/x   (path kept)
 //   wss://host/api/voice-> wss://host/api/voice
-function normalizeTargetUrl(raw, pipeline) {
+function normalizeTargetUrl(raw) {
   let u;
   try {
     u = new URL(raw);
@@ -140,7 +139,6 @@ function normalizeTargetUrl(raw, pipeline) {
   }
 
   if (u.pathname === '' || u.pathname === '/') u.pathname = '/api/voice';
-  u.searchParams.set('pipeline', pipeline);
   return u;
 }
 
@@ -342,9 +340,6 @@ function transcriptErrorRate(reference, hypothesis, metric) {
 
 async function main() {
   const rawUrl = process.argv[2];
-  const pipeline = String(
-    flagValue('--pipeline') ?? process.env.VOICE_PIPELINE ?? 'classic',
-  ).toLowerCase();
   const language = String(flagValue('--language') ?? 'en').toLowerCase();
   fixturePath = path.normalize(flagValue('--fixture') ?? DEFAULT_FIXTURE_PATH);
   const fixtureMeta = readFixtureMetadata(fixturePath);
@@ -355,19 +350,14 @@ async function main() {
   );
   const requestedOutput = flagValue('--output');
   if (!rawUrl) {
-    console.error('Usage: bun scripts/e2e-voice-latency.mjs <url> [--pipeline classic|inkling]');
+    console.error('Usage: bun scripts/e2e-voice-latency.mjs <url>');
     console.error('  <url> is the deployed endpoint, e.g. https://your-app.vercel.app');
     console.error('  or a full wss URL: wss://your-app.vercel.app/api/voice');
     process.exit(2);
   }
-  if (pipeline !== 'classic' && pipeline !== 'inkling') {
-    console.error(`Invalid pipeline: ${pipeline}. Use classic or inkling.`);
-    process.exit(2);
-  }
-
   let target;
   try {
-    target = normalizeTargetUrl(rawUrl, pipeline);
+    target = normalizeTargetUrl(rawUrl);
   } catch (e) {
     console.error(e.message);
     process.exit(2);
@@ -407,7 +397,6 @@ async function main() {
   console.log('End-to-end voice latency test');
   console.log('─'.repeat(53));
   console.log(`Endpoint    : ${target.href}`);
-  console.log(`Pipeline    : ${pipeline}`);
   console.log(`Protection  : ${protectionCookie ? 'bypass cookie' : 'none'}`);
   console.log(`Origin      : ${origin}`);
   console.log(`Language    : ${language}`);
@@ -474,7 +463,7 @@ async function main() {
   const outDir = 'bench-results';
   const file = requestedOutput
     ? path.normalize(requestedOutput)
-    : path.join(outDir, `voice-e2e-${pipeline}-${stamp}.json`);
+    : path.join(outDir, `voice-e2e-${stamp}.json`);
   const allPass =
     transcriptOk &&
     assistantOk &&
@@ -493,7 +482,6 @@ async function main() {
         startedAt: new Date(startedAt).toISOString(),
         durationMs: Date.now() - startedAt,
         endpoint: target.href,
-        pipeline,
         language,
         origin,
         fixture: fixturePath,

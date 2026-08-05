@@ -295,7 +295,11 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error(gl.getShaderInfoLog(shader));
+    const kind = type === gl.VERTEX_SHADER ? "vertex" : "fragment";
+    const infoLog = gl.getShaderInfoLog(shader);
+    console.error(
+      `[RehoboamOrbLab] ${kind} shader failed to compile: ${infoLog ?? "no info log"}`,
+    );
     gl.deleteShader(shader);
     return null;
   }
@@ -320,7 +324,10 @@ function createContext(canvas: HTMLCanvasElement): GlContext | null {
   gl.attachShader(program, fragment);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error(gl.getProgramInfoLog(program));
+    const infoLog = gl.getProgramInfoLog(program);
+    console.error(
+      `[RehoboamOrbLab] program failed to link: ${infoLog ?? "no info log"}`,
+    );
     return null;
   }
   gl.useProgram(program);

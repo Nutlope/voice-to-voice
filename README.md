@@ -42,7 +42,7 @@ sequenceDiagram
 
 Current event flow in words:
 
-Classic turn flow:
+Turn flow:
 
 1. Browser microphone records audio.
 2. TEN VAD, loaded as WASM in the browser, decides when speech opens.
@@ -81,39 +81,9 @@ TOGETHER_TTS_FALLBACK_MODEL=hexgrad/Kokoro-82M
 TOGETHER_TTS_FALLBACK_VOICE=af_heart
 ```
 
-The settings panel selects the pipeline before a call starts. A call keeps that
-selection for its full WebSocket lifetime:
-
-- **Classic** streams audio through Parakeet/Whisper, then sends the transcript
-  to Nemotron Ultra/MiniMax for the reply.
-- **Inkling** buffers the browser VAD turn and sends the WAV to
-  `thinkingmachines/inkling`, which returns both the visible transcript and the
-  reply in one model call.
-
-Both paths keep Cartesia Sonic/Kokoro as the separate text-to-speech stage.
-
-## Inkling
-
-Inkling is live on Together serverless as an audio-input, text-output model. It
-replaces the STT and reply models in the experimental path, not TTS. The app
-uses non-streaming HTTP for each bounded VAD turn, with low reasoning effort and
-a strict `<transcript>...</transcript><lang:xx>...` response contract.
-
-The repo includes a guarded readiness probe using Inkling's published OpenAI-compatible `input_audio` message shape. With no audio argument it only checks the live catalog and sends no inference request when the model is unavailable:
-
-```bash
-bun run probe:inkling
-```
-
-Test the standalone adapter with a PCM16 WAV:
-
-```bash
-bun run probe:inkling -- --audio ./sample.wav --mode transcribe
-bun run probe:inkling -- --audio ./sample.wav --mode reply
-```
-
-The probe first checks the live model catalog, then sends audio only when Inkling
-is available.
+The app streams audio through Parakeet/Whisper for STT, then sends the
+transcript to Nemotron Ultra/MiniMax for the reply. Cartesia Sonic/Kokoro stays
+as the separate text-to-speech stage.
 
 ## Deploy
 
@@ -159,8 +129,7 @@ Rules of thumb:
 `scripts/e2e-voice-latency.mjs` drives a full voice turn over the deployed `/api/voice` WebSocket and reports per-stage latencies (STT, time-to-first-assistant-token, first audio, total) plus content/audio sanity checks. It requires a **deployed URL** — local `next dev` does not support WebSocket upgrades, so run it against your Vercel deployment.
 
 ```bash
-bun run test:voice -- https://your-app.vercel.app --pipeline classic
-bun run test:voice -- https://your-app.vercel.app --pipeline inkling
+bun run test:voice -- https://your-app.vercel.app
 ```
 
 On first run it auto-synthesizes the `test-fixtures/hello-16k.pcm` fixture via Together REST TTS (`hexgrad/Kokoro-82M`), so `TOGETHER_API_KEY` must be available (exported or in `.env`) for that one-time step. The fixture is reused on subsequent runs.
@@ -174,7 +143,7 @@ BUDGET_TOTAL_MS=20000      # audio.done within this after audio.commit
 ```
 
 Full results are written to
-`bench-results/voice-e2e-<pipeline>-<timestamp>.json`. The script exits `0` only
+`bench-results/voice-e2e-<timestamp>.json`. The script exits `0` only
 if every assertion passes, `1` otherwise. For a protected Vercel preview, point
 `VERCEL_BYPASS_COOKIE_FILE` at a Netscape-format cookie jar created by
 `vercel curl`.

@@ -15,7 +15,6 @@ import {
   rms,
   type ThinkingSoundHandle,
 } from "@/app/_lib/client-audio";
-import type { VoicePipeline } from "@/app/_lib/voice-pipeline";
 
 type Phase = "idle" | "connecting" | "listening" | "thinking" | "speaking";
 
@@ -156,8 +155,6 @@ export function useVoiceConversation() {
   const [toolActivities, setToolActivities] = useState<ToolActivityItem[]>([]);
   const [debugCopied, setDebugCopied] = useState(false);
   const [debugVersion, setDebugVersion] = useState(0);
-  const pipeline: VoicePipeline = "inkling";
-
   const socketRef = useRef<WebSocket | null>(null);
   const sessionStartedAtRef = useRef<number | null>(null);
   const turnsRef = useRef<Turn[]>([]);
@@ -347,13 +344,13 @@ export function useVoiceConversation() {
       });
       mediaStreamRef.current = stream;
 
-      const socketUrl = getVoiceSocketUrl(pipeline);
+      const socketUrl = getVoiceSocketUrl();
       const socket = new WebSocket(socketUrl);
       socketRef.current = socket;
 
       socket.onopen = async () => {
         sessionStartedAtRef.current = Date.now();
-        appendDebug("system", "socket.open", { url: socketUrl, pipeline });
+        appendDebug("system", "socket.open", { url: socketUrl });
         sendClientEvent({ type: "conversation.start", history });
         try {
           await wireMicrophone(audioContext, stream, socket);
@@ -1361,7 +1358,6 @@ export function useVoiceConversation() {
     micActivity,
     micLevel,
     muted,
-    pipeline,
     phase,
     resetConversation,
     startConversation,

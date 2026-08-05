@@ -285,12 +285,12 @@ export function SttPlayground() {
               Same audio. Every Together serverless STT model.
             </div>
             <h1 className="mt-4 max-w-xl text-4xl font-semibold tracking-[-0.045em] text-balance sm:text-5xl">
-              How does Inkling compare with every Together STT model?
+              How does every Together STT model compare?
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-[#151320]/62 text-pretty">
               Hold to speak, then release. The exact same recording is sent to every
-              Together serverless speech-to-text model and Inkling — no VAD, reply
-              model, or TTS involved.
+              Together serverless speech-to-text model — no VAD, reply model, or
+              TTS involved.
             </p>
           </div>
 
@@ -420,7 +420,6 @@ export function SttPlayground() {
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {displayedModels.map((model, index) => {
               const modelState = modelStates[model.id];
-              const isAudioChat = model.kind === "audio-chat";
               const result =
                 modelState?.status === "completed" ? modelState.result : undefined;
               return (
@@ -428,7 +427,6 @@ export function SttPlayground() {
                   key={model.id}
                   className={cx(
                     "min-h-56 rounded-[24px] bg-white p-5 shadow-[0_1px_2px_rgba(20,16,32,0.04),0_12px_30px_rgba(51,36,85,0.06)]",
-                    isAudioChat && "bg-[#f1ebff]",
                   )}
                   initial={false}
                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -440,7 +438,6 @@ export function SttPlayground() {
                       <p
                         className={cx(
                           "mt-1 break-all font-mono text-[11px] leading-4 text-[#151320]/42",
-                          isAudioChat && "text-[#513087]/58",
                         )}
                       >
                         {model.model}
@@ -450,7 +447,6 @@ export function SttPlayground() {
                       <span
                         className={cx(
                           "shrink-0 rounded-full bg-[#151320]/5 px-2 py-1 font-mono text-[11px] tabular-nums text-[#151320]/55",
-                          isAudioChat && "bg-[#8e35d5]/10 text-[#513087]/70",
                         )}
                       >
                         {formatLatency(result.latencyMs)}
@@ -460,7 +456,6 @@ export function SttPlayground() {
                   <div
                     className={cx(
                       "mt-7 text-base leading-7 text-[#151320]/82 text-pretty",
-                      isAudioChat && "text-[#35214f]/86",
                     )}
                   >
                     {modelState?.status === "pending" ? (
@@ -477,7 +472,7 @@ export function SttPlayground() {
                     ) : hasModelStates ? (
                       "No transcript returned."
                     ) : (
-                      <span className={isAudioChat ? "text-[#513087]/52" : "text-[#151320]/36"}>
+                      <span className="text-[#151320]/36">
                         Ready to compare.
                       </span>
                     )}
