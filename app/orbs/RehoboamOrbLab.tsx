@@ -313,6 +313,13 @@ function createContext(canvas: HTMLCanvasElement): GlContext | null {
     premultipliedAlpha: false,
   });
   if (!gl) return null;
+  // A previous effect cleanup may have explicitly lost this canvas's context.
+  // Restore it before compiling, otherwise every shader compile fails with an
+  // empty info log.
+  if (gl.isContextLost()) {
+    gl.getExtension("WEBGL_lose_context")?.restoreContext();
+    if (gl.isContextLost()) return null;
+  }
 
   const vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
