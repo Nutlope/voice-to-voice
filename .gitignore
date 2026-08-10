@@ -18,3 +18,4 @@ bench-results/
 reflection.md
 ideas.md
 test-fixtures/stt-bench*
+/test-fixtures
