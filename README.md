@@ -1,149 +1,110 @@
-# Together Voice Demo
+# Together Voice
 
-A tiny voice-to-voice demo for Together AI:
+A real-time, multilingual voice assistant built with Together AI and Next.js.
 
-Browser mic -> Vercel WebSocket -> Together realtime STT -> Together chat streaming -> Together realtime TTS -> browser audio.
+## Pipeline
 
-The browser never receives the Together API key. It only connects to `/api/voice`.
+1. **Browser audio** — captures and streams microphone audio.
+2. **Browser VAD** — TEN VAD detects when the user starts and stops speaking.
+3. **Together STT** — Parakeet transcribes speech, with Whisper as the fallback.
+4. **Together LLM · transcript repair** — Qwen cleans the final transcript without changing its meaning.
+5. **Together LLM · reply** — Nemotron Ultra generates the response, with MiniMax as the fallback.
+6. **Together TTS** — Cartesia Sonic turns completed sentences into speech, with Kokoro as the fallback.
+7. **Browser playback and barge-in** — plays streamed audio and cancels or pauses the response when the user interrupts.
 
-## Voice Pipeline TLDR
+The Together API key stays on the server. The browser connects only to `/api/voice`.
 
-The important trick is that the browser does local endpointing, while Together does the actual transcription, reply, and speech generation. A speech segment ending is not always a full user turn ending: the server can pause a pending answer when the browser says speech started again.
+## Quick start
 
-```mermaid
-sequenceDiagram
-  autonumber
-
-  box rgb(238, 247, 255) Browser
-    participant B as Browser<br/>TEN VAD + UI
-  end
-
-  box rgb(255, 246, 226) Server
-    participant S as /api/voice
-  end
-
-  box rgb(239, 249, 236) Together
-    participant T as Together models
-  end
-
-  B->>S: speech.started
-  B->>S: audio.input chunks
-  S->>T: STT: nvidia/nemotron-3-asr-streaming-0.6b
-  S->>B: transcript.delta
-
-  B->>S: audio.commit
-  S->>T: repair: Qwen/Qwen3.5-9B
-  S->>B: transcript.final
-
-  S->>T: reply: Qwen/Qwen2.5-7B-Instruct-Turbo
-  S->>T: TTS: cartesia/sonic-3
-  S->>B: assistant text + audio
-```
-
-Current event flow in words:
-
-Turn flow:
-
-1. Browser microphone records audio.
-2. TEN VAD, loaded as WASM in the browser, decides when speech opens.
-3. The client immediately sends `speech.started` so the server can pause pending repair or reply work.
-4. The client buffers and streams `audio.input` chunks while speech is active.
-5. TEN VAD decides speech ended after short silence, then the client sends `audio.commit`.
-6. Together STT streams `transcript.delta` for provisional UI text, then `transcript.completed`.
-7. The server merges nearby speech segments, waits `REPLY_GRACE_MS`, repairs the full transcript, and sends `transcript.final`.
-8. The assistant reply uses the repaired transcript, streams text to the UI, and streams sentence chunks through TTS to browser playback.
-
-## Run
+You need [Bun](https://bun.sh/) and a [Together AI API key](https://api.together.ai/settings/api-keys).
 
 ```bash
 bun install
+```
+
+Create `.env`:
+
+```bash
+TOGETHER_API_KEY=your_key_here
+```
+
+Start the app:
+
+```bash
 bun run dev
 ```
 
-`bun run dev` is useful for UI work, but full voice mode needs a runtime that supports WebSocket upgrades. For the working voice demo, deploy to Vercel.
+Local development is useful for UI work. The complete voice flow relies on Vercel WebSocket upgrades, so test live conversations from a deployed environment.
 
-Create `.env` with:
+## Default models
 
-```bash
-TOGETHER_API_KEY=...
+| Stage | Primary | Fallback |
+| --- | --- | --- |
+| Speech-to-text | `nvidia/parakeet-tdt-0.6b-v3` | `openai/whisper-large-v3` |
+| Transcript repair | `Qwen/Qwen3.5-9B` | — |
+| Reply | `nvidia/nemotron-3-ultra-550b-a55b` | `MiniMaxAI/MiniMax-M2.7` |
+| Text-to-speech | `cartesia/sonic-3` | `hexgrad/Kokoro-82M` |
+
+Every default can be overridden with the `TOGETHER_*` environment variables defined in [`app/api/voice/voice-utils.ts`](app/api/voice/voice-utils.ts).
+
+## Build something similar with your coding agent
+
+Copy this prompt into an agent that has access to your project:
+
+```text
+Inspect https://github.com/riccardogiorato/voice-to-voice directly before writing code. Use the repository as a working architecture and behavior reference, not just the README.
+
+Trace the complete voice pipeline through the browser hook, WebSocket route, voice session, model configuration, audio utilities, UI components, and tests. Pay particular attention to browser VAD, streaming audio, live transcripts, transcript repair, STT → reply → TTS separation, sentence-level playback, barge-in cancellation, same-language replies, provider fallbacks, same-origin protection, connection cleanup, and the deployed end-to-end latency test.
+
+Then implement a similar production-ready, mobile-first voice-to-voice experience in my current project. Adapt it to the project's existing framework, conventions, package manager, and design system instead of copying files blindly. Keep provider credentials server-side, expose model choices through environment variables, make interruptions and reconnects safe, and include accessible controls and clear error states.
+
+Before coding, explain the architecture you found and the smallest implementation plan. After coding, run the relevant tests and production build, test the real voice flow in a runtime that supports WebSocket upgrades, and clearly distinguish what was code-verified, browser-verified, and live-deployment-verified.
 ```
 
-Optional model overrides:
+## Commands
 
-```bash
-TOGETHER_STT_MODEL=nvidia/parakeet-tdt-0.6b-v3
-TOGETHER_STT_FALLBACK_MODEL=openai/whisper-large-v3
-TOGETHER_CHAT_MODEL=nvidia/nemotron-3-ultra-550b-a55b
-TOGETHER_CHAT_FALLBACK_MODEL=MiniMaxAI/MiniMax-M2.7
-TOGETHER_TTS_MODEL=cartesia/sonic-3
-TOGETHER_TTS_VOICE=nonfiction man
-TOGETHER_TTS_FALLBACK_MODEL=hexgrad/Kokoro-82M
-TOGETHER_TTS_FALLBACK_VOICE=af_heart
-```
+| Command | Purpose |
+| --- | --- |
+| `bun run dev` | Start the local development server |
+| `bun test` | Run the test suite |
+| `bun run build` | Compile and type-check the production app |
+| `bun run test:voice -- <url>` | Test a complete voice turn against a deployment |
+| `bun run bench:stt` | Compare speech-to-text models |
+| `bun run bench:repair` | Compare transcript repair models |
+| `bun run bench:reply` | Compare reply models |
+| `bun run bench:tts` | Compare text-to-speech models |
+| `bun run deploy` | Deploy the app to Vercel production |
 
-The app streams audio through Parakeet/Whisper for STT, then sends the
-transcript to Nemotron Ultra/MiniMax for the reply. Cartesia Sonic/Kokoro stays
-as the separate text-to-speech stage.
+## Project map
+
+- [`app/_hooks/useVoiceConversation.ts`](app/_hooks/useVoiceConversation.ts) — browser conversation state, microphone capture, and playback
+- [`app/api/voice/route.ts`](app/api/voice/route.ts) — WebSocket upgrade and same-origin protection
+- [`app/api/voice/voice-session.ts`](app/api/voice/voice-session.ts) — server-side STT, reply, tools, and TTS orchestration
+- [`app/api/voice/voice-utils.ts`](app/api/voice/voice-utils.ts) — models, prompts, timing, and protocol types
+- [`app/_components/voice`](app/_components/voice) — voice UI components
+- [`scripts`](scripts) — benchmarks and deployed end-to-end checks
+
+Extra development routes:
+
+- `/stt-playground` compares STT models.
+- `/orbs` previews the WebGL orb experiments.
+- `/design` previews voice UI components.
 
 ## Deploy
 
-Deploy to Vercel and set `TOGETHER_API_KEY` in the project environment:
+Add the API key to Vercel, then deploy:
 
 ```bash
 bunx vercel env add TOGETHER_API_KEY
-bunx vercel deploy
+bun run deploy
 ```
 
-For a production URL:
+The voice route uses Vercel's `experimental_upgradeWebSocket()` API and requires Fluid Compute. It allows an eleven-minute function lifetime while the app ends calls after ten minutes for a clean shutdown.
 
-```bash
-bunx vercel deploy --prod
-```
-
-This uses Vercel's `experimental_upgradeWebSocket()` API for Next.js App Router. WebSockets require Fluid Compute and are governed by Vercel Function max duration. The route exports `maxDuration = 660`, while the app ends calls cleanly after 10 minutes to leave a 60-second shutdown buffer.
-
-### Why the function region is pinned to `iad1`
-
-`vercel.json` pins the function to `iad1` (US East). This was measured, not guessed (2026-07-08, probe function timing warm requests to `api.together.ai`):
-
-| Function region | Warm RTT to Together API | First audio, measured from Europe |
-| --------------- | ------------------------ | --------------------------------- |
-| `iad1` (US East) | ~131 ms | **~1.2–1.3 s** |
-| `sfo1` (US West) | ~78 ms | ~1.4–1.5 s |
-
-Together's serverless inference origin is US West (behind Cloudflare), so `sfo1` is closest to the models — but the orchestrator talks to **both** sides: each turn is one client<->function exchange plus several function<->Together round trips. For users outside the US West coast, `iad1` sits between them and the models and wins end to end.
-
-Rules of thumb:
-
-- Keep the orchestrator near the model APIs, not near the user — the user leg is one streaming WebSocket, the Together leg is many round trips per turn.
-- Demoing to a US West audience? Switch `regions` to `["sfo1"]` and redeploy; for users in SF both legs shorten and first audio should drop well under 1 s.
-- Re-measure after any region change with `bun run test:voice -- <url>` (see below).
-
-## Files
-
-- `app/page.tsx` - mobile-first voice UI, mic capture, WebSocket client, PCM playback
-- `app/api/voice/route.ts` - server-side WebSocket that hides the API key and orchestrates Together STT/chat/TTS
-
-## End-to-end voice test
-
-`scripts/e2e-voice-latency.mjs` drives a full voice turn over the deployed `/api/voice` WebSocket and reports per-stage latencies (STT, time-to-first-assistant-token, first audio, total) plus content/audio sanity checks. It requires a **deployed URL** — local `next dev` does not support WebSocket upgrades, so run it against your Vercel deployment.
+After deployment, verify the full pipeline:
 
 ```bash
 bun run test:voice -- https://your-app.vercel.app
 ```
 
-On first run it auto-synthesizes the `test-fixtures/hello-16k.pcm` fixture via Together REST TTS (`hexgrad/Kokoro-82M`), so `TOGETHER_API_KEY` must be available (exported or in `.env`) for that one-time step. The fixture is reused on subsequent runs.
-
-Latency budgets are tunable with env vars (defaults shown):
-
-```bash
-BUDGET_STT_MS=4000         # transcript.final within this after audio.commit
-BUDGET_FIRST_AUDIO_MS=7000 # first audio.delta within this after audio.commit
-BUDGET_TOTAL_MS=20000      # audio.done within this after audio.commit
-```
-
-Full results are written to
-`bench-results/voice-e2e-<timestamp>.json`. The script exits `0` only
-if every assertion passes, `1` otherwise. For a protected Vercel preview, point
-`VERCEL_BYPASS_COOKIE_FILE` at a Netscape-format cookie jar created by
-`vercel curl`.
+The test reports STT, first-token, first-audio, and total latency. Detailed results are saved under `bench-results/`.

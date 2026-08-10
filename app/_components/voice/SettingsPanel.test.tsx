@@ -14,5 +14,6 @@ test("shows the listen and reply models while keeping voice output separate", ()
   expect(markup).not.toContain("Inkling");
   expect(markup).toContain("Debug");
   expect(markup).toContain('aria-expanded="false"');
+  expect(markup).not.toContain("Compare speech-to-text");
   expect(markup).not.toContain("Copy session log");
 });
