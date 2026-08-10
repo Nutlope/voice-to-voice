@@ -309,8 +309,13 @@ button {
   border-radius: 999px;
   background: transparent;
   cursor: pointer;
-  transition-property: scale;
-  transition-duration: 150ms;
+  transition-property: width, height, scale;
+  transition-duration: 280ms, 280ms, 150ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.voice-orb-button-compact {
+  --voice-orb-size: min(64vw, 270px);
 }
 
 .voice-orb-button:enabled:active {
@@ -326,14 +331,55 @@ button {
   display: block;
   width: var(--voice-orb-size);
   height: var(--voice-orb-size);
-  transition-property: scale;
-  transition-duration: 140ms;
+  transition-property: width, height, scale;
+  transition-duration: 280ms, 280ms, 140ms;
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .voice-shader-orb[data-state="listening"] {
   /* The orb contracts into the user's voice instead of flickering with it. */
   scale: calc(1 - (var(--voice-activity) * 0.12));
+}
+
+.voice-live-dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 999px;
+  background: #ef2cc1;
+}
+
+.voice-live-dot::after {
+  position: absolute;
+  inset: -4px;
+  border: 1px solid rgba(239, 44, 193, 0.42);
+  border-radius: inherit;
+  content: "";
+  animation: voice-live-pulse 1.6s ease-out infinite;
+}
+
+@keyframes voice-live-pulse {
+  0% {
+    opacity: 0;
+    scale: 0.6;
+  }
+
+  32% {
+    opacity: 0.72;
+  }
+
+  100% {
+    opacity: 0;
+    scale: 1.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-live-dot::after {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 .voice-mic-meter {

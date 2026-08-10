@@ -16,7 +16,7 @@ export function VoiceConversationStream({
     <div className="conversation-stream">
       <div
         ref={scrollRef}
-        className="conversation-scroll max-h-[240px] overflow-y-auto overscroll-contain"
+        className="conversation-scroll max-h-[min(36dvh,300px)] overflow-y-auto overscroll-contain"
       >
         <div className="flex min-h-[132px] flex-col justify-end gap-1.5 px-1 py-5">
           {items.map((item, index) => {

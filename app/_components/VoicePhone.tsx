@@ -6,7 +6,7 @@ type VoiceConversation = ReturnType<typeof useVoiceConversation>;
 const phaseCopy: Record<VoiceConversation["phase"], { label: string }> = {
   idle: { label: "Tap anywhere" },
   connecting: { label: "Connecting" },
-  listening: { label: "I’m listening…" },
+  listening: { label: "Listening" },
   thinking: { label: "Thinking..." },
   speaking: { label: "..." },
 };

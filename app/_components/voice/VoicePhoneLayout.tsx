@@ -57,6 +57,7 @@ export function VoicePhoneLayout({
   const canStartFromSurface = phase === "idle" && !hasTurns && !settingsOpen;
   const hasFooterControls = isActive || hasTurns;
   const hasContentBelowMessages = Boolean(error) || hasFooterControls;
+  const hasConversation = conversationItems.length > 0;
 
   function handleSurfaceClick(event: MouseEvent<HTMLElement>) {
     if (!canStartFromSurface || isInteractiveTarget(event.target)) return;
@@ -95,10 +96,11 @@ export function VoicePhoneLayout({
             <VoiceOrbButton
               phase={phase}
               activity={activity}
+              compact={hasConversation}
               disabled={isActive}
               onClick={onStart}
             />
-            <VoiceStatusPill label={status.label} />
+            <VoiceStatusPill label={status.label} micLive={isActive && !muted} />
           </div>
         </div>
 
