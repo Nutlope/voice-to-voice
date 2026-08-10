@@ -387,6 +387,7 @@ function RehoboamCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<GlContext | null>(null);
+  const contextLossTimerRef = useRef<number | null>(null);
   const frameRef = useRef(0);
   const startedAtRef = useRef(0);
   const elapsedRef = useRef(0);
@@ -461,6 +462,10 @@ function RehoboamCanvas({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (contextLossTimerRef.current !== null) {
+      window.clearTimeout(contextLossTimerRef.current);
+      contextLossTimerRef.current = null;
+    }
     contextRef.current = createContext(canvas);
     if (!contextRef.current) return;
     startedAtRef.current = performance.now() - elapsedRef.current * 1000;
@@ -469,8 +474,12 @@ function RehoboamCanvas({
 
     return () => {
       window.cancelAnimationFrame(frameRef.current);
-      contextRef.current?.gl.getExtension("WEBGL_lose_context")?.loseContext();
+      const context = contextRef.current;
       contextRef.current = null;
+      contextLossTimerRef.current = window.setTimeout(() => {
+        context?.gl.getExtension("WEBGL_lose_context")?.loseContext();
+        contextLossTimerRef.current = null;
+      }, 0);
     };
   }, [render]);
 

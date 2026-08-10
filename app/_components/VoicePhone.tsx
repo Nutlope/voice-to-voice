@@ -3,35 +3,20 @@ import { VoicePhoneLayout } from "@/app/_components/voice/VoicePhoneLayout";
 
 type VoiceConversation = ReturnType<typeof useVoiceConversation>;
 
-const phaseCopy: Record<VoiceConversation["phase"], { label: string; detail: string }> = {
-  idle: {
-    label: "Tap anywhere",
-    detail: "Start voice chat",
-  },
-  connecting: {
-    label: "Connecting",
-    detail: "Opening",
-  },
-  listening: {
-    label: "I’m listening…",
-    detail: "Live",
-  },
-  thinking: {
-    label: "Thinking...",
-    detail: "Working",
-  },
-  speaking: {
-    label: "...",
-    detail: "Replying",
-  },
+const phaseCopy: Record<VoiceConversation["phase"], { label: string }> = {
+  idle: { label: "Tap anywhere" },
+  connecting: { label: "Connecting" },
+  listening: { label: "I’m listening…" },
+  thinking: { label: "Thinking..." },
+  speaking: { label: "..." },
 };
 
 export function VoicePhone({ voice }: { voice: VoiceConversation }) {
   const status =
     voice.muted && voice.isActive
-      ? { label: "Muted", detail: "Tap the mic to resume" }
+      ? { label: "Muted" }
       : !voice.isActive && voice.turns.length > 0
-        ? { label: "Ready when you are", detail: "Resume or start new" }
+        ? { label: "Ready when you are" }
         : phaseCopy[voice.phase];
   const waveformVisible = voice.userSpeaking && !voice.muted;
   const micMeterVisible = voice.isActive && !voice.muted;

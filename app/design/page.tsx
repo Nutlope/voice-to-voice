@@ -138,11 +138,13 @@ export default function DesignPage() {
                 </div>
               </Specimen>
 
-              <Specimen title="Status Pills">
+              <Specimen title="Status Labels">
                 <div className="flex flex-wrap gap-3">
-                  <VoiceStatusPill label="Tap anywhere" detail="Start voice chat" />
-                  <VoiceStatusPill label="Thinking" detail="Working" />
-                  <VoiceStatusPill label="Speaking" detail="Replying" />
+                  {["Tap anywhere", "Thinking", "Speaking"].map((label) => (
+                    <div className="relative h-16 w-36" key={label}>
+                      <VoiceStatusPill label={label} />
+                    </div>
+                  ))}
                 </div>
               </Specimen>
             </section>

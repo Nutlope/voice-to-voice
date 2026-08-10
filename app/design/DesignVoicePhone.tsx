@@ -18,7 +18,7 @@ const flow = [
   {
     name: "Idle",
     phase: "idle" as const,
-    status: { label: "Tap anywhere", detail: "Start voice chat" },
+    status: { label: "Tap anywhere" },
     activity: 0,
     micLevel: 0,
     items: [] as ConversationTimelineItem[],
@@ -27,7 +27,7 @@ const flow = [
   {
     name: "Connecting",
     phase: "connecting" as const,
-    status: { label: "Connecting", detail: "Opening" },
+    status: { label: "Connecting" },
     activity: 0.16,
     micLevel: 0.12,
     items: [] as ConversationTimelineItem[],
@@ -36,7 +36,7 @@ const flow = [
   {
     name: "Listening",
     phase: "listening" as const,
-    status: { label: "Listening", detail: "Live" },
+    status: { label: "Listening" },
     activity: 0.48,
     micLevel: 0.7,
     items: [
@@ -53,7 +53,7 @@ const flow = [
   {
     name: "Thinking",
     phase: "thinking" as const,
-    status: { label: "Thinking", detail: "Working" },
+    status: { label: "Thinking" },
     activity: 0.34,
     micLevel: 0.18,
     items: [
@@ -73,7 +73,7 @@ const flow = [
   {
     name: "Speaking",
     phase: "speaking" as const,
-    status: { label: "Speaking", detail: "Replying" },
+    status: { label: "Speaking" },
     activity: 0.76,
     micLevel: 0.1,
     items: [
@@ -95,7 +95,7 @@ const flow = [
   {
     name: "Reply ready",
     phase: "listening" as const,
-    status: { label: "Listening", detail: "Live" },
+    status: { label: "Listening" },
     activity: 0.2,
     micLevel: 0.3,
     items: [
@@ -116,7 +116,7 @@ const flow = [
   {
     name: "Call ended",
     phase: "idle" as const,
-    status: { label: "Call ended", detail: "Resume or start new" },
+    status: { label: "Call ended" },
     activity: 0,
     micLevel: 0,
     items: [

@@ -19,7 +19,7 @@ export type VoicePhoneLayoutProps = {
   muted: boolean;
   activity: number;
   micLevel: number;
-  status: { label: string; detail: string };
+  status: { label: string };
   conversationItems: ConversationTimelineItem[];
   conversationScrollRef?: Ref<HTMLDivElement>;
   error?: string | null;
@@ -90,14 +90,16 @@ export function VoicePhoneLayout({
           />
         ) : null}
 
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 pb-6">
-          <VoiceOrbButton
-            phase={phase}
-            activity={activity}
-            disabled={isActive}
-            onClick={onStart}
-          />
-          <VoiceStatusPill label={status.label} detail={status.detail} />
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center pb-6">
+          <div className="relative">
+            <VoiceOrbButton
+              phase={phase}
+              activity={activity}
+              disabled={isActive}
+              onClick={onStart}
+            />
+            <VoiceStatusPill label={status.label} />
+          </div>
         </div>
 
         <div className="shrink-0">
