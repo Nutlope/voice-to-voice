@@ -10,8 +10,9 @@ notices.
 <!-- BEGIN:runtime-agent-rules -->
 # Package manager and runtime
 
-Use pnpm for package scripts and one-off binaries in this repository. Use
-`pnpm` instead of npm or Bun, and `pnpm exec` instead of npx or bunx.
+Use Bun for dependency management, workspace scripts, and one-off binaries in
+this repository. Use `bun install`, `bun run`, and `bun x`; do not add npm,
+pnpm, or Yarn lockfiles or commands.
 
 The realtime package, Node adapter, and Next.js adapter support Node.js 22 or
 newer. Bun, Deno, Edge runtimes, and Cloudflare Workers are not supported.

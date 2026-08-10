@@ -6,9 +6,9 @@ Date: 2026-07-14 (Europe/Rome)
 
 | Command | Result |
 | --- | --- |
-| `pnpm typecheck` | Passed for `@together/realtime` and the Next.js demo |
-| `pnpm build` | Passed package ESM/declaration build and Next.js 16.2.10 production build |
-| `pnpm test` | 5 files passed, 15 tests passed |
+| `bun run typecheck` | Passed for `@together/realtime` and the Next.js demo |
+| `bun run build` | Passed package ESM/declaration build and Next.js 16.2.10 production build |
+| `bun run test` | 5 files passed, 15 tests passed |
 | In-app browser `?smoke=1` | Agents SDK secret + WebSocket connection passed; received `session.created` and two `session.updated` events; clean disconnect; no console errors |
 
 The smoke query deliberately skips `getUserMedia`; it verifies the real browser
@@ -18,7 +18,7 @@ live ambient audio.
 
 ## Paid Together black-box suite
 
-`pnpm test:e2e` passed 5/5 using a Node client with browser WebSocket
+`bun run test:e2e` passed 5/5 using a Node client with browser WebSocket
 subprotocols and only the demo's public HTTP/WebSocket endpoints:
 
 | Case | Result | Wall time |

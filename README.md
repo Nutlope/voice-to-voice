@@ -16,15 +16,15 @@ the same subprotocol shape used by the OpenAI Agents SDK.
 ## Requirements
 
 - Node.js 22 or newer
-- pnpm 11
+- Bun 1.3.14 or newer
 - `TOGETHER_API_KEY`
 - `TOGETHER_REALTIME_SECRET` in every non-local environment
 
 ```bash
 cp .env.example .env
-pnpm install
-pnpm test
-pnpm demo
+bun install
+bun run test
+bun run demo
 ```
 
 Open <http://localhost:3000>, allow microphone access, and connect. The demo
@@ -65,14 +65,14 @@ catalogs are model-specific.
 ## Verification
 
 ```bash
-pnpm typecheck
-pnpm build
-pnpm test
-pnpm test:e2e
-pnpm demo
+bun run typecheck
+bun run build
+bun run test
+bun run test:e2e
+bun run demo
 ```
 
-`pnpm test` is deterministic and uses fake providers. `pnpm test:e2e` is
+`bun run test` is deterministic and uses fake providers. `bun run test:e2e` is
 explicitly paid/networked: it starts the demo, obtains a client secret over
 HTTP, and drives the WebSocket like a browser using only public endpoints. It
 checks manual commit, server VAD, function-tool continuation, barge-in, PCM16

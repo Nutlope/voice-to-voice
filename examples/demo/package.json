@@ -7,13 +7,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "predev": "pnpm --filter @together/realtime build",
+    "predev": "bun run --cwd ../.. --filter @together/realtime build",
     "dev": "tsx server.ts",
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
-    "pretypecheck": "pnpm --filter @together/realtime build",
+    "pretypecheck": "bun run --cwd ../.. --filter @together/realtime build",
     "typecheck": "tsc --noEmit",
-    "pretest:e2e": "pnpm --filter @together/realtime build",
+    "pretest:e2e": "bun run --cwd ../.. --filter @together/realtime build",
     "test:e2e": "tsx e2e/black-box.ts"
   },
   "dependencies": {
@@ -28,6 +28,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.0",
     "ws": "8.21.0"

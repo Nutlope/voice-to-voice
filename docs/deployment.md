@@ -64,5 +64,5 @@ needs nor provides cross-instance session synchronization.
 - Enforce user authentication before issuing a client secret in the host app.
 - Put rate limits, quotas, moderation, logs, and metrics around the engine if the
   product needs them; they are intentionally not core features.
-- Re-run `pnpm test:e2e` against the public deployment with `E2E_BASE_URL` before
+- Re-run `bun run test:e2e` against the public deployment with `E2E_BASE_URL` before
   routing users to it.

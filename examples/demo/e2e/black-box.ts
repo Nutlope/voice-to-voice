@@ -10,7 +10,7 @@ try { process.loadEnvFile(resolve(repoRoot, ".env")); } catch {}
 
 if (!process.env.TOGETHER_API_KEY) {
   throw new Error(
-    "pnpm test:e2e requires TOGETHER_API_KEY (export it or add it to the repository .env). This is an explicit paid/network suite.",
+    "bun run test:e2e requires TOGETHER_API_KEY (export it or add it to the repository .env). This is an explicit paid/network suite.",
   );
 }
 
@@ -297,7 +297,7 @@ class BrowserLikeClient {
 }
 
 async function startServer(serverPort: number) {
-  const child = spawn("pnpm", ["exec", "tsx", "server.ts"], {
+  const child = spawn("bun", ["run", "tsx", "server.ts"], {
     cwd: packageRoot,
     env: { ...process.env, PORT: String(serverPort), NODE_ENV: "development" },
     stdio: ["ignore", "pipe", "pipe"],
