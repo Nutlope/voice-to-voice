@@ -9,15 +9,15 @@ const STT_FALLBACK_MODEL = envOrDefault(
   "TOGETHER_STT_FALLBACK_MODEL",
   "openai/whisper-large-v3",
 );
-// Replies need reasoning/tool-call behavior; keep smaller Qwen models for transcript repair.
-// Override via env for latency experiments.
+// Reply defaults are selected from the voice latency/quality benchmark.
+// Override via env for further experiments.
 export const CHAT_MODEL = envOrDefault(
   "TOGETHER_CHAT_MODEL",
-  "nvidia/nemotron-3-ultra-550b-a55b",
+  "Qwen/Qwen3.7-Plus",
 );
 const CHAT_FALLBACK_MODEL = envOrDefault(
   "TOGETHER_CHAT_FALLBACK_MODEL",
-  "MiniMaxAI/MiniMax-M2.7",
+  "MiniMaxAI/MiniMax-M3",
 );
 export const TRANSCRIPT_REPAIR_MODEL = envOrDefault(
   "TOGETHER_TRANSCRIPT_REPAIR_MODEL",

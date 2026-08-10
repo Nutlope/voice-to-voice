@@ -25,6 +25,43 @@ afterEach(() => {
   process.env.EXA_API_KEY = originalExaKey;
 });
 
+test("disables thinking for the Qwen primary and MiniMax fallback", async () => {
+  process.env.EXA_API_KEY = "";
+  const requestBodies: Record<string, unknown>[] = [];
+
+  globalThis.fetch = (async (_input, init) => {
+    requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    if (requestBodies.length === 1) {
+      return new Response("primary unavailable", { status: 503 });
+    }
+    return sseResponse([
+      { choices: [{ delta: { content: "<lang:en>The fallback worked." } }] },
+    ]);
+  }) as typeof fetch;
+
+  const reply = await generateAssistantReply({
+    history: [{ role: "user", content: "Try the fallback." }],
+    transcript: "Try the fallback.",
+    signal: new AbortController().signal,
+    onDelta: () => {},
+  });
+
+  expect(reply).toBe("The fallback worked.");
+  expect(requestBodies).toHaveLength(2);
+  expect(requestBodies[0]).toMatchObject({
+    model: "Qwen/Qwen3.7-Plus",
+    reasoning: { enabled: false },
+    reasoning_effort: "low",
+    chat_template_kwargs: { enable_thinking: false, thinking: false },
+  });
+  expect(requestBodies[1]).toMatchObject({
+    model: "MiniMaxAI/MiniMax-M3",
+    reasoning: { enabled: false },
+    reasoning_effort: "low",
+    chat_template_kwargs: { enable_thinking: false, thinking: false },
+  });
+});
+
 test("does not stream assistant text from a tool-call planning turn", async () => {
   let togetherCalls = 0;
   setToolCallRunnerForTest(async (toolCall) => {

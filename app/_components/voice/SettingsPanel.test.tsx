@@ -9,7 +9,7 @@ test("shows the listen and reply models while keeping voice output separate", ()
   expect(markup).toContain("Listen");
   expect(markup).toContain("Reply");
   expect(markup).toContain("Parakeet / Whisper");
-  expect(markup).toContain("Nemotron Ultra / MiniMax M2.7");
+  expect(markup).toContain("Qwen 3.7 Plus / MiniMax M3");
   expect(markup).toContain("Sonic 3 / Kokoro");
   expect(markup).not.toContain("Inkling");
   expect(markup).toContain("Debug");

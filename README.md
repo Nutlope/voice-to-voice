@@ -8,7 +8,7 @@ A real-time, multilingual voice assistant built with Together AI and Next.js.
 2. **Browser VAD** — TEN VAD detects when the user starts and stops speaking.
 3. **Together STT** — Parakeet transcribes speech, with Whisper as the fallback.
 4. **Together LLM · transcript repair** — Qwen cleans the final transcript without changing its meaning.
-5. **Together LLM · reply** — Nemotron Ultra generates the response, with MiniMax as the fallback.
+5. **Together LLM · reply** — Qwen 3.7 Plus generates the response, with MiniMax M3 as the fallback.
 6. **Together TTS** — Cartesia Sonic turns completed sentences into speech, with Kokoro as the fallback.
 7. **Browser playback and barge-in** — plays streamed audio and cancels or pauses the response when the user interrupts.
 
@@ -42,7 +42,7 @@ Local development is useful for UI work. The complete voice flow relies on Verce
 | --- | --- | --- |
 | Speech-to-text | `nvidia/parakeet-tdt-0.6b-v3` | `openai/whisper-large-v3` |
 | Transcript repair | `Qwen/Qwen3.5-9B` | — |
-| Reply | `nvidia/nemotron-3-ultra-550b-a55b` | `MiniMaxAI/MiniMax-M2.7` |
+| Reply | `Qwen/Qwen3.7-Plus` | `MiniMaxAI/MiniMax-M3` |
 | Text-to-speech | `cartesia/sonic-3` | `hexgrad/Kokoro-82M` |
 
 Every default can be overridden with the `TOGETHER_*` environment variables defined in [`app/api/voice/voice-utils.ts`](app/api/voice/voice-utils.ts).

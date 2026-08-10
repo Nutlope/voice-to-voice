@@ -37,7 +37,7 @@ export function VoiceSettingsPanel({
         </div>
         <div className="flex items-center justify-between gap-4">
           <dt className="text-[#050505]/52">Reply</dt>
-          <dd className="text-right font-medium text-[#050505]">Nemotron Ultra / MiniMax M2.7</dd>
+          <dd className="text-right font-medium text-[#050505]">Qwen 3.7 Plus / MiniMax M3</dd>
         </div>
         <div className="flex items-center justify-between gap-4">
           <dt className="text-[#050505]/52">Voice</dt>

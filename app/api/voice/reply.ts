@@ -44,6 +44,10 @@ export type ReplyDebugEvent = {
 };
 
 const MAX_TOOL_ROUNDS = 1;
+const REPLY_MODELS_WITH_THINKING_DISABLED = new Set([
+  "Qwen/Qwen3.7-Plus",
+  "MiniMaxAI/MiniMax-M3",
+]);
 const FINAL_ANSWER_PROTOCOL_REMINDER =
   "The next response is the final spoken answer. Begin it with exactly one " +
   "<lang:xx> prefix for the language you will use, then plain spoken text. " +
@@ -324,17 +328,18 @@ async function streamTogetherChat({
   streamContent: (delta: string) => void;
   onDebug?: (event: Omit<ReplyDebugEvent, "model" | "attempt">) => void;
 }): Promise<ChatStreamResult> {
+  const thinkingEnabled = !REPLY_MODELS_WITH_THINKING_DISABLED.has(model);
   const body: Record<string, unknown> = {
     model,
     messages,
     temperature: 0.35,
     stream: true,
     stream_options: { include_usage: true },
-    reasoning: { enabled: true },
+    reasoning: { enabled: thinkingEnabled },
     reasoning_effort: "low",
     chat_template_kwargs: {
-      enable_thinking: true,
-      thinking: true,
+      enable_thinking: thinkingEnabled,
+      thinking: thinkingEnabled,
     },
   };
 
