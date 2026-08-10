@@ -315,7 +315,7 @@ button {
 }
 
 .voice-orb-button-compact {
-  --voice-orb-size: min(64vw, 270px);
+  --voice-orb-size: min(72vw, 300px);
 }
 
 .voice-orb-button:enabled:active {

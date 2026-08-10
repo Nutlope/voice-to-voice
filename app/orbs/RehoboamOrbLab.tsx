@@ -128,7 +128,7 @@ void main() {
   float thinking = phaseState(3.0);
   float replying = phaseState(4.0);
 
-  float baseRadius = 0.56;
+  float baseRadius = 0.62;
   float voiceWave =
     sin(angle * 5.0 - time * 3.4) * 0.48 +
     sin(angle * 9.0 + time * 2.6) * 0.3 +
