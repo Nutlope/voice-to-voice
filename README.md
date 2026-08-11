@@ -1,110 +1,90 @@
-# Together Voice
+# Together Voice-to-Voice v2
 
-A real-time, multilingual voice assistant built with Together AI and Next.js.
-
-## Pipeline
-
-1. **Browser audio** — captures and streams microphone audio.
-2. **Browser VAD** — TEN VAD detects when the user starts and stops speaking.
-3. **Together STT** — Parakeet transcribes speech, with Whisper as the fallback.
-4. **Together LLM · transcript repair** — Qwen cleans the final transcript without changing its meaning.
-5. **Together LLM · reply** — Qwen 3.7 Plus generates the response, with MiniMax M3 as the fallback.
-6. **Together TTS** — Cartesia Sonic turns completed sentences into speech, with Kokoro as the fallback.
-7. **Browser playback and barge-in** — plays streamed audio and cancels or pauses the response when the user interrupts.
-
-The Together API key stays on the server. The browser connects only to `/api/voice`.
-
-## Quick start
-
-You need [Bun](https://bun.sh/) and a [Together AI API key](https://api.together.ai/settings/api-keys).
-
-```bash
-bun install
-```
-
-Create `.env`:
-
-```bash
-TOGETHER_API_KEY=your_key_here
-```
-
-Start the app:
-
-```bash
-bun run dev
-```
-
-Local development is useful for UI work. The complete voice flow relies on Vercel WebSocket upgrades, so test live conversations from a deployed environment.
-
-## Default models
-
-| Stage | Primary | Fallback |
-| --- | --- | --- |
-| Speech-to-text | `nvidia/parakeet-tdt-0.6b-v3` | `openai/whisper-large-v3` |
-| Transcript repair | `Qwen/Qwen3.5-9B` | — |
-| Reply | `Qwen/Qwen3.7-Plus` | `MiniMaxAI/MiniMax-M3` |
-| Text-to-speech | `cartesia/sonic-3` | `hexgrad/Kokoro-82M` |
-
-Every default can be overridden with the `TOGETHER_*` environment variables defined in [`app/api/voice/voice-utils.ts`](app/api/voice/voice-utils.ts).
-
-## Build something similar with your coding agent
-
-Copy this prompt into an agent that has access to your project:
+An OpenAI Realtime-compatible voice pipeline built from Together's serverless
+speech-to-text, chat, and text-to-speech models. The reusable TypeScript engine
+is framework-neutral; Node.js and Next.js adapters keep the transport layer
+thin.
 
 ```text
-Inspect https://github.com/riccardogiorato/voice-to-voice directly before writing code. Use the repository as a working architecture and behavior reference, not just the README.
-
-Trace the complete voice pipeline through the browser hook, WebSocket route, voice session, model configuration, audio utilities, UI components, and tests. Pay particular attention to browser VAD, streaming audio, live transcripts, transcript repair, STT → reply → TTS separation, sentence-level playback, barge-in cancellation, same-language replies, provider fallbacks, same-origin protection, connection cleanup, and the deployed end-to-end latency test.
-
-Then implement a similar production-ready, mobile-first voice-to-voice experience in my current project. Adapt it to the project's existing framework, conventions, package manager, and design system instead of copying files blindly. Keep provider credentials server-side, expose model choices through environment variables, make interruptions and reconnects safe, and include accessible controls and clear error states.
-
-Before coding, explain the architecture you found and the smallest implementation plan. After coding, run the relevant tests and production build, test the real voice flow in a runtime that supports WebSocket upgrades, and clearly distinguish what was code-verified, browser-verified, and live-deployment-verified.
+PCM16 microphone -> Together STT -> AI SDK tool-capable reply -> Together TTS -> PCM16 audio
 ```
 
-## Commands
+The Together API key stays on the server. Browsers first request a short-lived,
+stateless signed client secret, then authenticate the Realtime WebSocket with
+the same subprotocol shape used by the OpenAI Agents SDK.
 
-| Command | Purpose |
-| --- | --- |
-| `bun run dev` | Start the local development server |
-| `bun test` | Run the test suite |
-| `bun run build` | Compile and type-check the production app |
-| `bun run test:voice -- <url>` | Test a complete voice turn against a deployment |
-| `bun run bench:stt` | Compare speech-to-text models |
-| `bun run bench:repair` | Compare transcript repair models |
-| `bun run bench:reply` | Compare reply models |
-| `bun run bench:tts` | Compare text-to-speech models |
-| `bun run deploy` | Deploy the app to Vercel production |
+## Requirements
 
-## Project map
-
-- [`app/_hooks/useVoiceConversation.ts`](app/_hooks/useVoiceConversation.ts) — browser conversation state, microphone capture, and playback
-- [`app/api/voice/route.ts`](app/api/voice/route.ts) — WebSocket upgrade and same-origin protection
-- [`app/api/voice/voice-session.ts`](app/api/voice/voice-session.ts) — server-side STT, reply, tools, and TTS orchestration
-- [`app/api/voice/voice-utils.ts`](app/api/voice/voice-utils.ts) — models, prompts, timing, and protocol types
-- [`app/_components/voice`](app/_components/voice) — voice UI components
-- [`scripts`](scripts) — benchmarks and deployed end-to-end checks
-
-Extra development routes:
-
-- `/stt-playground` compares STT models.
-- `/orbs` previews the WebGL orb experiments.
-- `/design` previews voice UI components.
-
-## Deploy
-
-Add the API key to Vercel, then deploy:
+- Node.js 22 or newer
+- Bun 1.3.14 or newer
+- `TOGETHER_API_KEY`
+- `TOGETHER_REALTIME_SECRET` in every non-local environment
 
 ```bash
-bunx vercel env add TOGETHER_API_KEY
-bun run deploy
+cp .env.example .env
+bun install
+bun run test
+bun run demo
 ```
 
-The voice route uses Vercel's `experimental_upgradeWebSocket()` API and requires Fluid Compute. It allows an eleven-minute function lifetime while the app ends calls after ten minutes for a clean shutdown.
+Open <http://localhost:3000>, allow microphone access, and connect. The demo
+uses `@openai/agents` with a local function tool against the custom Realtime
+URL.
 
-After deployment, verify the full pipeline:
+For a transport-only browser smoke test that must not capture ambient audio,
+open <http://localhost:3000/?smoke=1>. It uses the same Agents SDK connection
+and session configuration but deliberately skips `getUserMedia`.
+
+## Workspace
+
+- `packages/realtime` - engine, Together provider, stateless client secrets,
+  OpenAI-compatible session state, Node adapter, and Next adapter
+- `examples/demo` - Next.js browser demo and paid public-endpoint black-box suite
+- `docs/compatibility.md` - supported, ignored, and rejected contract surface
+- `docs/deployment.md` - local container, Vercel, and Railway guidance
+- `docs/verification.md` - dated deterministic, paid-network, browser, and catalog evidence
+
+The example models are deliberately explicit, with no fallback:
+
+| Stage | Model | Live Together catalog check |
+| --- | --- | --- |
+| STT | `openai/whisper-large-v3` | present as `transcribe` on 2026-07-14 |
+| Reply | `Qwen/Qwen3.5-9B` | present as `chat`, 262,144-token context on 2026-07-14 |
+| TTS | `cartesia/sonic-3` | present in the live serverless catalog and paid WebSocket probe on 2026-07-14 |
+
+Applications must pass all three model IDs and the reply context window when
+constructing the engine. A provider error is surfaced; the engine never changes
+models silently. The example disables Qwen's optional reasoning mode in the
+server-side Together request so voice replies do not spend the output budget on
+hidden thinking before producing speakable text.
+
+The demo voice `nonfiction man` was also confirmed by the live Sonic 3
+WebSocket on 2026-07-14. The package requires an explicit default because voice
+catalogs are model-specific.
+
+## Verification
 
 ```bash
-bun run test:voice -- https://your-app.vercel.app
+bun run typecheck
+bun run build
+bun run test
+bun run test:e2e
+bun run demo
 ```
 
-The test reports STT, first-token, first-audio, and total latency. Detailed results are saved under `bench-results/`.
+`bun run test` is deterministic and uses fake providers. `bun run test:e2e` is
+explicitly paid/networked: it starts the demo, obtains a client secret over
+HTTP, and drives the WebSocket like a browser using only public endpoints. It
+checks manual commit, server VAD, function-tool continuation, barge-in, PCM16
+audio, event ordering, and a nonfatal protocol error. Provider mocks are not
+treated as integration proof.
+
+## Package usage
+
+See [`packages/realtime/README.md`](packages/realtime/README.md) for the engine
+API and complete Node.js and Next.js adapter examples. The tested OpenAI Agents
+SDK version is `0.13.3`; compatibility outside the matrix is not implied.
+
+This v2 core intentionally has no telemetry, rate limiter, persistence,
+database, or distributed session coordination. Session state lives in the
+process that owns the WebSocket.
