@@ -29,6 +29,41 @@ const MIGRATION_LINES = [
   { kind: "added", text: 'const secret = await fetch("/api/realtime/client_secrets", { method: "POST" });' },
 ] as const;
 
+const SERVER_SETUP_LINES = [
+  { kind: "file", text: "// lib/realtime.ts" },
+  { kind: "context", text: 'import { createRealtimeEngine } from "@together/realtime";' },
+  { kind: "spacer", text: "" },
+  { kind: "context", text: "export const realtimeEngine = createRealtimeEngine({" },
+  { kind: "context", text: "  apiKey: process.env.TOGETHER_API_KEY," },
+  { kind: "context", text: "  realtimeSecret: process.env.TOGETHER_REALTIME_SECRET," },
+  { kind: "context", text: "  models: {" },
+  { kind: "context", text: '    stt: "nvidia/parakeet-tdt-0.6b-v3",' },
+  { kind: "context", text: '    realtimeStt: "openai/whisper-large-v3",' },
+  { kind: "context", text: '    reply: "nvidia/nemotron-3-ultra-550b-a55b",' },
+  { kind: "context", text: '    tts: "cartesia/sonic-3",' },
+  { kind: "context", text: "  }," },
+  { kind: "context", text: "  replyContextWindowTokens: 262_144," },
+  { kind: "context", text: "  maxOutputTokens: 128," },
+  { kind: "context", text: '  defaultVoice: "nonfiction man",' },
+  { kind: "context", text: "});" },
+  { kind: "spacer", text: "" },
+  { kind: "file", text: "// app/api/realtime/route.ts" },
+  { kind: "context", text: 'import { createNextRealtimeHandlers } from "@together/realtime/next";' },
+  { kind: "context", text: 'import { realtimeEngine } from "@/lib/realtime";' },
+  { kind: "spacer", text: "" },
+  { kind: "context", text: 'export const runtime = "nodejs";' },
+  { kind: "context", text: 'export const dynamic = "force-dynamic";' },
+  { kind: "context", text: "export const GET = createNextRealtimeHandlers(realtimeEngine).GET;" },
+  { kind: "spacer", text: "" },
+  { kind: "file", text: "// app/api/realtime/client_secrets/route.ts" },
+  { kind: "context", text: 'import { createNextRealtimeHandlers } from "@together/realtime/next";' },
+  { kind: "context", text: 'import { realtimeEngine } from "@/lib/realtime";' },
+  { kind: "spacer", text: "" },
+  { kind: "context", text: 'export const runtime = "nodejs";' },
+  { kind: "context", text: 'export const dynamic = "force-dynamic";' },
+  { kind: "context", text: "export const POST = createNextRealtimeHandlers(realtimeEngine).POST;" },
+] as const;
+
 export default function Home() {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const captureRef = useRef<Awaited<ReturnType<typeof startCapture>> | null>(null);
@@ -226,28 +261,14 @@ export default function Home() {
 
   return (
     <main>
-      <section className="hero">
+      <section className="demo-column">
+        <section className="hero">
         <div className="eyebrow">
           <img className="together-logo" src="/together-logo.svg" alt="Together AI" />
           <span>Realtime voice demo</span>
         </div>
         <h1>Run your OpenAI voice agent on Together.</h1>
         <p className="lede">Keep <code>@openai/agents/realtime</code>, your agent, and every tool. Swap the transport and client-secret endpoint.</p>
-        <section className="code-change" aria-labelledby="code-change-title">
-          <div className="code-change-header">
-            <div>
-              <span className="code-kicker">2-line client migration</span>
-              <strong id="code-change-title">Point two calls at Together</strong>
-            </div>
-            <span className="language-badge">TypeScript</span>
-          </div>
-          <pre aria-label="TypeScript migration diff"><code>{MIGRATION_LINES.map((line, index) => (
-            <span className={`code-line ${line.kind}`} aria-hidden={line.kind === "spacer" || undefined} key={`${line.kind}-${index}`}>
-              <span className="diff-mark">{line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</span>
-              <span>{line.text}</span>
-            </span>
-          ))}</code></pre>
-        </section>
         <section
           className={`live-state phase-${ui.phase}${ui.userSpeaking ? " user-speaking" : ""}`}
           aria-live="polite"
@@ -281,8 +302,8 @@ export default function Home() {
             <span>{muted ? "Unmute" : "Mute"}</span>
           </button>
         </div>
-      </section>
-      <aside>
+        </section>
+        <aside>
         <div className={`status phase-${ui.phase}`}><span className="dot" />{phaseCopy.label}</div>
         <h2>Conversation</h2>
         <div className="conversation" aria-live="polite">
@@ -312,7 +333,45 @@ export default function Home() {
             {protocolEvents.length === 0 ? <p>No events yet.</p> : protocolEvents.map((event, index) => <code key={`${event}-${index}`}>{event}</code>)}
           </div>
         </details>
-      </aside>
+        </aside>
+      </section>
+      <section className="code-column" aria-label="Integration code">
+        <div className="code-column-heading">
+          <span>Integration</span>
+          <h2>Use your existing OpenAI agent.</h2>
+          <p>Point the client at Together, then configure the server-side realtime pipeline.</p>
+        </div>
+        <section className="code-change" aria-labelledby="code-change-title">
+          <div className="code-change-header">
+            <div>
+              <span className="code-kicker">2-line client migration</span>
+              <strong id="code-change-title">Point two calls at Together</strong>
+            </div>
+            <span className="language-badge">TypeScript</span>
+          </div>
+          <pre aria-label="TypeScript migration diff"><code>{MIGRATION_LINES.map((line, index) => (
+            <span className={`code-line ${line.kind}`} aria-hidden={line.kind === "spacer" || undefined} key={`${line.kind}-${index}`}>
+              <span className="diff-mark">{line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</span>
+              <span>{line.text}</span>
+            </span>
+          ))}</code></pre>
+        </section>
+        <section className="code-change server-setup" aria-labelledby="server-setup-title">
+          <div className="code-change-header">
+            <div>
+              <span className="code-kicker">Required server setup</span>
+              <strong id="server-setup-title">Configure models and expose both routes</strong>
+            </div>
+            <span className="language-badge">Next.js</span>
+          </div>
+          <pre aria-label="Together realtime server setup"><code>{SERVER_SETUP_LINES.map((line, index) => (
+            <span className={`code-line ${line.kind}`} aria-hidden={line.kind === "spacer" || undefined} key={`${line.kind}-${index}`}>
+              <span className="diff-mark"> </span>
+              <span>{line.text}</span>
+            </span>
+          ))}</code></pre>
+        </section>
+      </section>
     </main>
   );
 }
