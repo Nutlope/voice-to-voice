@@ -491,8 +491,17 @@ export class RealtimeSession {
         else if (part.type === "done") response.replyDone = true;
       }
       response.replyDone = true;
-      if (!response.transcript) response.ttsDone = true;
-      else this.speech?.commit();
+      if (!response.transcript.trim()) {
+        response.transcript = "";
+        if (response.assistantMessage) response.assistantMessage.text = "";
+        response.ttsDone = true;
+        this.speech?.cancel();
+        this.speech?.close();
+        this.speech = undefined;
+        this.speechPromise = undefined;
+      } else {
+        this.speech?.commit();
+      }
       this.maybeFinalize(response);
     } catch (error) {
       if (response.controller.signal.aborted) return;

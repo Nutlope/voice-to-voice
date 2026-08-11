@@ -24,6 +24,7 @@ class FakeProvider implements RealtimeProvider {
   replies: ReplyStreamEvent[][] = [];
   committed = 0;
   holdReply = false;
+  silentSpeechCommit = false;
 
   async openTranscription(input: Parameters<RealtimeProvider["openTranscription"]>[0]): Promise<TranscriptionConnection> {
     this.transcriptionEvent = input.onEvent;
@@ -42,6 +43,7 @@ class FakeProvider implements RealtimeProvider {
     return {
       append() {},
       commit: () => {
+        if (this.silentSpeechCommit) return;
         input.onEvent({ type: "conversation.item.audio_output.delta", delta: Buffer.alloc(4800).toString("base64") });
         input.onEvent({ type: "conversation.item.audio_output.done" });
       },
@@ -114,6 +116,26 @@ describe("OpenAI-compatible session state", () => {
     socket.receive({ type: "response.create" });
     await waitFor(() => socket.sent.filter((event) => event.type === "response.done").length === 2);
     expect(socket.sent.some((event) => event.type === "response.output_audio.delta")).toBe(true);
+  });
+
+  it("finishes a tool-call response with a silent text preamble", async () => {
+    const provider = new FakeProvider();
+    provider.silentSpeechCommit = true;
+    const { socket } = await setup(provider);
+    provider.replies.push([
+      { type: "text-delta", delta: " " },
+      { type: "tool-call", callId: "call_clock", name: "clock", arguments: "{}" },
+      { type: "done", finishReason: "tool-calls" },
+    ]);
+    socket.receive({
+      type: "session.update",
+      session: { tools: [{ type: "function", name: "clock", parameters: { type: "object" } }] },
+    });
+    socket.receive({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: "time" }] } });
+    socket.receive({ type: "response.create" });
+
+    await waitFor(() => socket.sent.some((event) => event.type === "response.done"));
+    expect(socket.sent.some((event) => event.type === "response.function_call_arguments.done")).toBe(true);
   });
 
   it("cancels an active response when server VAD reports barge-in", async () => {

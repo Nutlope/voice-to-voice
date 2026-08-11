@@ -6,17 +6,25 @@ import {
   RealtimeSession,
   tool,
 } from "@openai/agents/realtime";
+import {
+  formatToolName,
+  initialRealtimeUiState,
+  realtimePhaseCopy,
+  reduceRealtimeUi,
+  type RealtimeHistoryItem,
+  type RealtimeUiEvent,
+} from "@/lib/realtime-ui";
+import { DEMO_AGENT_INSTRUCTIONS } from "@/lib/agent";
 import { DEMO_VOICE } from "@/lib/voice";
 import { useCallback, useRef, useState } from "react";
 import { z } from "zod";
-
-type LogEntry = { id: number; text: string };
 
 const getLocalTime = tool({
   name: "get_local_time",
   description: "Get the current local time in a requested IANA time zone.",
   parameters: z.object({ timeZone: z.string().default("Europe/Rome") }),
   async execute({ timeZone }) {
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
     return new Intl.DateTimeFormat("en", {
       timeZone,
       dateStyle: "full",
@@ -27,8 +35,7 @@ const getLocalTime = tool({
 
 const agent = new RealtimeAgent({
   name: "Together Voice",
-  instructions:
-    "You are a warm, concise voice assistant running on Together AI. Reply in one or two natural sentences. Use get_local_time for current time questions.",
+  instructions: DEMO_AGENT_INSTRUCTIONS,
   tools: [getLocalTime],
 });
 
@@ -36,18 +43,19 @@ export default function Home() {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const captureRef = useRef<Awaited<ReturnType<typeof startCapture>> | null>(null);
   const playbackRef = useRef<PcmPlayback | null>(null);
-  const [status, setStatus] = useState("Disconnected");
-  const [manual, setManual] = useState(false);
+  const [ui, setUi] = useState(initialRealtimeUiState);
   const [muted, setMuted] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [protocolEvents, setProtocolEvents] = useState<string[]>([]);
 
-  const log = useCallback((text: string) => {
-    setLogs((current) => [...current.slice(-30), { id: Date.now() + Math.random(), text }]);
+  const dispatchUi = useCallback((event: RealtimeUiEvent) => {
+    setUi((current) => reduceRealtimeUi(current, event));
   }, []);
 
   const connect = useCallback(async () => {
     if (sessionRef.current) return;
-    setStatus("Connecting");
+    const smokeMode = new URLSearchParams(window.location.search).get("smoke");
+    dispatchUi({ type: "connecting" });
+    setProtocolEvents([]);
     const secretResponse = await fetch("/api/realtime/client_secrets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -57,7 +65,7 @@ export default function Home() {
           type: "realtime",
           model: "together-realtime",
           audio: {
-            input: { turn_detection: manual ? null : { type: "server_vad", create_response: true, interrupt_response: true } },
+            input: { turn_detection: { type: "server_vad", create_response: true, interrupt_response: true } },
             output: { voice: DEMO_VOICE },
           },
         },
@@ -68,6 +76,11 @@ export default function Home() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${window.location.host}/api/realtime?model=together-realtime`;
     const transport = new OpenAIRealtimeWebSocket({ url });
+    let sessionUpdatedCount = 0;
+    let resolveToolsReady: (() => void) | null = null;
+    const toolsReady = new Promise<void>((resolve) => {
+      resolveToolsReady = resolve;
+    });
     const session = new RealtimeSession(agent, {
       transport,
       model: "together-realtime" as never,
@@ -77,9 +90,7 @@ export default function Home() {
           input: {
             format: "pcm16",
             transcription: null,
-            turnDetection: manual
-              ? null
-              : { type: "server_vad", createResponse: true, interruptResponse: true },
+            turnDetection: { type: "server_vad", createResponse: true, interruptResponse: true },
           },
           output: { format: "pcm16", voice: DEMO_VOICE },
         },
@@ -87,22 +98,88 @@ export default function Home() {
     });
     session.transport.on("*", (event) => {
       const type = (event as { type?: string }).type;
-      if (type) log(type);
+      if (!type) return;
+      setProtocolEvents((current) => [...current.slice(-19), type]);
+      if (type === "session.updated") {
+        sessionUpdatedCount += 1;
+        if (sessionUpdatedCount >= 2) resolveToolsReady?.();
+      }
+      if (
+        smokeMode === "turn" &&
+        type === "response.function_call_arguments.done"
+      ) {
+        session.transport.sendEvent({
+          type: "session.update",
+          session: { tool_choice: "auto" },
+        });
+      }
+      if (type === "input_audio_buffer.speech_started") {
+        dispatchUi({ type: "speech_started" });
+      } else if (type === "input_audio_buffer.speech_stopped") {
+        dispatchUi({ type: "speech_stopped" });
+      }
+    });
+    session.on("agent_start", () => dispatchUi({ type: "response_started" }));
+    session.on("audio_start", () => dispatchUi({ type: "audio_started" }));
+    session.on("audio_stopped", () => dispatchUi({ type: "audio_stopped" }));
+    session.on("audio_interrupted", () => dispatchUi({ type: "interrupted" }));
+    session.on("history_updated", (history) => {
+      dispatchUi({
+        type: "history_updated",
+        items: history as RealtimeHistoryItem[],
+      });
+    });
+    session.on("agent_tool_start", (_context, _agent, toolDefinition, details) => {
+      const call = details.toolCall as { callId?: string; id?: string; arguments?: string };
+      dispatchUi({
+        type: "tool_started",
+        id: call.callId ?? call.id ?? `${toolDefinition.name}-${Date.now()}`,
+        name: toolDefinition.name,
+        ...(call.arguments ? { input: call.arguments } : {}),
+      });
+    });
+    session.on("agent_tool_end", (_context, _agent, toolDefinition, result, details) => {
+      const call = details.toolCall as { callId?: string; id?: string };
+      dispatchUi({
+        type: "tool_completed",
+        id: call.callId ?? call.id ?? toolDefinition.name,
+        name: toolDefinition.name,
+        output: result,
+      });
     });
     playbackRef.current = new PcmPlayback();
     session.on("audio", (event) => playbackRef.current?.push(event.data));
-    session.on("error", (event) => log(`SDK error: ${String(event)}`));
+    session.on("error", (event) => {
+      dispatchUi({ type: "failed", message: describeError(event.error) });
+    });
     await session.connect({ apiKey: secret.value });
     sessionRef.current = session;
-    if (new URLSearchParams(window.location.search).get("smoke") === "1") {
-      setStatus("Connected (no microphone)");
+    if (smokeMode === "1" || smokeMode === "turn") {
+      dispatchUi({ type: "connected" });
+      if (smokeMode === "turn") {
+        await Promise.race([toolsReady, delay(2_000)]);
+        setProtocolEvents((current) => [...current.slice(-19), "smoke.turn.sent"]);
+        session.transport.sendEvent({
+          type: "session.update",
+          session: { tool_choice: "required" },
+        });
+        session.transport.sendEvent({
+          type: "conversation.item.create",
+          item: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: "What time is it in Tokyo?" }],
+          },
+        });
+        session.transport.sendEvent({ type: "response.create" });
+      }
       return;
     }
     try {
       captureRef.current = await startCapture((audio) => {
         if (!muted) session.sendAudio(audio);
       });
-      setStatus("Listening");
+      dispatchUi({ type: "connected" });
     } catch (error) {
       session.close();
       sessionRef.current = null;
@@ -110,7 +187,7 @@ export default function Home() {
       playbackRef.current = null;
       throw error;
     }
-  }, [log, manual, muted]);
+  }, [dispatchUi, muted]);
 
   const disconnect = useCallback(() => {
     captureRef.current?.stop();
@@ -119,13 +196,14 @@ export default function Home() {
     playbackRef.current = null;
     sessionRef.current?.close();
     sessionRef.current = null;
-    setStatus("Disconnected");
-  }, []);
+    dispatchUi({ type: "disconnected" });
+  }, [dispatchUi]);
 
-  const commit = useCallback(() => {
-    sessionRef.current?.transport.sendEvent({ type: "input_audio_buffer.commit" });
-    sessionRef.current?.transport.sendEvent({ type: "response.create" });
-  }, []);
+  const phaseCopy = muted && sessionRef.current
+    ? { label: "Muted", detail: "Your microphone is paused." }
+    : realtimePhaseCopy[ui.phase];
+  const isConnected = Boolean(sessionRef.current);
+  const isConnecting = ui.phase === "connecting";
 
   return (
     <main>
@@ -140,30 +218,69 @@ export default function Home() {
           <li><span>1</span><div><strong>Client secret</strong><code>/api/realtime/client_secrets</code></div></li>
           <li><span>2</span><div><strong>WebSocket</strong><code>/api/realtime</code></div></li>
         </ol>
+        <section
+          className={`live-state phase-${ui.phase}${ui.userSpeaking ? " user-speaking" : ""}`}
+          aria-live="polite"
+          aria-label="Voice session status"
+        >
+          <div className="voice-orb" aria-hidden="true"><span /></div>
+          <div>
+            <strong>{phaseCopy.label}</strong>
+            <p>{phaseCopy.detail}</p>
+          </div>
+        </section>
         <div className="controls">
-          {status === "Disconnected" ? (
-            <button className="primary" onClick={() => void connect().catch((error) => { setStatus("Failed"); log(String(error)); })}>Connect microphone</button>
+          {!isConnected ? (
+            <button className="primary" disabled={isConnecting} onClick={() => void connect().catch((error) => dispatchUi({ type: "failed", message: describeError(error) }))}>{isConnecting ? "Connecting…" : "Connect microphone"}</button>
           ) : (
             <button className="primary live" onClick={disconnect}>End session</button>
           )}
           <button onClick={() => setMuted((value) => !value)} disabled={!sessionRef.current}>{muted ? "Unmute" : "Mute"}</button>
-          <button onClick={commit} disabled={!manual || !sessionRef.current}>Commit turn</button>
         </div>
-        <label className="mode">
-          <input type="checkbox" checked={manual} disabled={status !== "Disconnected"} onChange={(event) => setManual(event.target.checked)} />
-          Manual commit (server VAD is the default)
-        </label>
       </section>
       <aside>
-        <div className="status"><span className={status === "Listening" ? "dot active" : "dot"} />{status}</div>
-        <h2>Protocol events</h2>
-        <div className="log">
-          {logs.length === 0 ? <p>Connect to see the live event stream.</p> : logs.map((entry) => <code key={entry.id}>{entry.text}</code>)}
+        <div className={`status phase-${ui.phase}`}><span className="dot" />{phaseCopy.label}</div>
+        <h2>Conversation</h2>
+        <div className="conversation" aria-live="polite">
+          {ui.timeline.length === 0 ? (
+            <p className="empty-conversation">Your speech, replies, and tool calls will appear here.</p>
+          ) : ui.timeline.map((item) => item.type === "message" ? (
+            <div className={`message ${item.role}`} key={`${item.type}-${item.id}`}>
+              <span>{item.role === "user" ? "You" : "Together"}</span>
+              <p>{item.text}</p>
+            </div>
+          ) : (
+            <div className={`tool-activity ${item.status}`} key={`${item.type}-${item.id}`}>
+              <span className="tool-icon" aria-hidden="true">↗</span>
+              <div>
+                <strong>{formatToolName(item.name)}</strong>
+                <p>{item.status === "running" ? "Tool is running…" : "Tool completed"}</p>
+              </div>
+              <span className="tool-status" aria-label={item.status} />
+            </div>
+          ))}
         </div>
-        <p className="hint">Try: “What time is it in Tokyo?” The tool runs locally in your browser.</p>
+        {ui.error ? <p className="session-error">{ui.error}</p> : null}
+        <p className="hint">Try: “What time is it in Tokyo?” When a tool runs, it appears here before the spoken reply.</p>
+        <details className="protocol-details">
+          <summary>Technical event log</summary>
+          <div className="log">
+            {protocolEvents.length === 0 ? <p>No events yet.</p> : protocolEvents.map((event, index) => <code key={`${event}-${index}`}>{event}</code>)}
+          </div>
+        </details>
       </aside>
     </main>
   );
+}
+
+function describeError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "The realtime session failed.";
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function startCapture(onAudio: (audio: ArrayBuffer) => void) {

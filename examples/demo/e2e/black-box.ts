@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import WebSocket from "ws";
+import { DEMO_AGENT_INSTRUCTIONS } from "../lib/agent.js";
 import { DEMO_VOICE } from "../lib/voice.js";
 
 const packageRoot = process.cwd();
@@ -25,6 +26,12 @@ try {
   if (!process.env.E2E_BASE_URL) server = await startServer(port);
   await waitForServer(baseUrl);
   const audio = await loadFixtureAt24Khz();
+
+  if (process.env.E2E_SCENARIO === "italian-language") {
+    await runItalianLanguageScenario();
+    await writeReport();
+    return;
+  }
 
   await run("manual PCM16 STT to reply to streamed TTS", async () => {
     const client = await BrowserLikeClient.connect(baseUrl, websocketUrl, {
@@ -202,14 +209,50 @@ try {
     return { code: (error.error as Record<string, unknown>)?.code };
   });
 
+  await writeReport();
+} finally {
+  server?.kill("SIGTERM");
+}
+
+async function runItalianLanguageScenario() {
+  await run("Italian input and reply preserve the spoken language", async () => {
+    const client = await BrowserLikeClient.connect(baseUrl, websocketUrl, {});
+    await client.waitFor("session.created");
+    client.send({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        model: "together-realtime",
+        instructions: DEMO_AGENT_INSTRUCTIONS,
+        audio: {
+          input: { transcription: null, turn_detection: null },
+          output: { voice: DEMO_VOICE },
+        },
+      },
+    });
+    await client.waitFor("session.updated");
+    await client.streamAudio(await loadPcm16At24Khz("voice-paired-it.pcm"), true);
+    client.send({ type: "input_audio_buffer.commit" });
+    client.send({ type: "response.create" });
+    const inputDone = await client.waitFor("conversation.item.input_audio_transcription.completed", 45_000);
+    const outputDone = await client.waitFor("response.output_audio_transcript.done", 45_000);
+    await client.waitFor("response.done", 45_000);
+    const inputTranscript = String(inputDone.transcript ?? "");
+    const outputTranscript = String(outputDone.transcript ?? "");
+    client.close();
+    assert(/\b(ciao|dimmi|breve|fatto|luna)\b/i.test(inputTranscript), `Italian input was translated or mistranscribed: ${inputTranscript}`);
+    assert(/\b(il|la|un|una|della|luna|è|sono|può|circa)\b/i.test(outputTranscript), `Assistant did not reply in Italian: ${outputTranscript}`);
+    return { inputTranscript, outputTranscript };
+  });
+}
+
+async function writeReport() {
   const report = { passed: results.length, baseUrl, testedAt: new Date().toISOString(), results };
   await mkdir(resolve(repoRoot, "e2e-results"), { recursive: true });
   const reportPath = resolve(repoRoot, "e2e-results", `realtime-${Date.now()}.json`);
   await writeFile(reportPath, JSON.stringify(report, null, 2));
   console.log(`\nPaid black-box suite passed (${results.length}/${results.length}).`);
   console.log(`Report: ${reportPath}`);
-} finally {
-  server?.kill("SIGTERM");
 }
 }
 
@@ -316,6 +359,12 @@ async function waitForServer(url: string) {
     try {
       const response = await fetch(`${url}/api/realtime`);
       if (response.status === 426) return;
+      if (
+        response.status === 400 &&
+        (await response.text()).includes("realtime WebSocket subprotocol is required")
+      ) {
+        return;
+      }
     } catch {}
     await delay(250);
   }
@@ -323,7 +372,11 @@ async function waitForServer(url: string) {
 }
 
 async function loadFixtureAt24Khz() {
-  const bytes = await readFile(resolve(repoRoot, "test-fixtures/hello-16k.pcm"));
+  return loadPcm16At24Khz("hello-16k.pcm");
+}
+
+async function loadPcm16At24Khz(filename: string) {
+  const bytes = await readFile(resolve(repoRoot, "test-fixtures", filename));
   const input = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
   const output = new Int16Array(Math.floor(input.length * 1.5));
   for (let index = 0; index < output.length; index += 1) {
