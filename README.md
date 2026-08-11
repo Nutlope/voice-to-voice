@@ -1,3 +1,5 @@
+![Together Voice cover](public/cover/og-cover.png)
+
 # Together Voice
 
 A real-time, multilingual voice assistant built with Together AI and Next.js.

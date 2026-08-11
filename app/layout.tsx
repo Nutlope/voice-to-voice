@@ -22,6 +22,24 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Together Voice",
   description: "Voice-to-voice AI demo running entirely on Together AI models.",
+  openGraph: {
+    title: "Together Voice",
+    description: "Voice-to-voice AI demo running entirely on Together AI models.",
+    images: [
+      {
+        url: "/cover/og-cover.png",
+        width: 1200,
+        height: 630,
+        alt: "Together Voice",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Together Voice",
+    description: "Voice-to-voice AI demo running entirely on Together AI models.",
+    images: ["/cover/og-cover.png"],
+  },
 };
 
 export default function RootLayout({
