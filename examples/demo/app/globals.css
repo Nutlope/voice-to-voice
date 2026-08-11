@@ -46,6 +46,7 @@ main {
 .hero {
   position: relative;
   isolation: isolate;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -123,6 +124,7 @@ h1 {
 
 .code-change {
   width: min(100%, 720px);
+  min-width: 0;
   margin-top: 1.35rem;
   overflow: hidden;
   border-radius: 12px;
@@ -169,19 +171,20 @@ h1 {
 
 .code-change pre {
   margin: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   padding: 0.75rem 0;
   font-family: var(--mono);
   font-size: 0.7rem;
   line-height: 1.55;
-  scrollbar-color: #555 transparent;
+  white-space: pre-wrap;
 }
 
 .code-line {
-  min-width: max-content;
+  min-width: 0;
   display: grid;
-  grid-template-columns: 1.25rem minmax(max-content, 1fr);
+  grid-template-columns: 1.25rem minmax(0, 1fr);
   padding: 0.08rem 1rem;
+  overflow-wrap: anywhere;
 }
 
 .code-line.removed {
