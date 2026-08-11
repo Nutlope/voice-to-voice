@@ -219,14 +219,28 @@ export default function Home() {
       <section className="hero">
         <div className="eyebrow">
           <img className="together-logo" src="/together-logo.svg" alt="Together AI" />
-          <span>Realtime v2</span>
+          <span>Realtime voice demo</span>
         </div>
-        <h1>Same OpenAI voice agent.<br />Now on Together.</h1>
-        <p className="lede">Keep <code>@openai/agents/realtime</code>, your agent, and your tools. Change two URLs to run the same realtime voice flow on Together.</p>
-        <ol className="switches" aria-label="Two changes to use Together">
-          <li><span>1</span><div><strong>Client secret</strong><code>/api/realtime/client_secrets</code></div></li>
-          <li><span>2</span><div><strong>WebSocket</strong><code>/api/realtime</code></div></li>
-        </ol>
+        <h1>Run your OpenAI voice agent on Together.</h1>
+        <p className="lede">Keep <code>@openai/agents/realtime</code>, your agent, and every tool. Swap the transport and client-secret endpoint.</p>
+        <section className="code-change" aria-labelledby="code-change-title">
+          <div className="code-change-header">
+            <div>
+              <span className="code-kicker">Migration</span>
+              <strong id="code-change-title">Two changes. Same agent.</strong>
+            </div>
+            <span className="language-badge">TypeScript</span>
+          </div>
+          <pre aria-label="TypeScript migration diff"><code>
+            <span className="code-line removed"><span className="diff-mark">−</span><span>const session = new RealtimeSession(agent);</span></span>
+            <span className="code-line added"><span className="diff-mark">+</span><span>const transport = new OpenAIRealtimeWebSocket(&#123; url: wsBase + &quot;/api/realtime&quot; &#125;);</span></span>
+            <span className="code-line added"><span className="diff-mark">+</span><span>const session = new RealtimeSession(agent, &#123; transport &#125;);</span></span>
+            <span className="code-line spacer" aria-hidden="true"><span className="diff-mark"> </span><span /></span>
+            <span className="code-line removed"><span className="diff-mark">−</span><span>await session.connect(&#123; apiKey: OPENAI_API_KEY &#125;);</span></span>
+            <span className="code-line added"><span className="diff-mark">+</span><span>const &#123; value &#125; = await createClientSecret(&quot;/api/realtime/client_secrets&quot;);</span></span>
+            <span className="code-line added"><span className="diff-mark">+</span><span>await session.connect(&#123; apiKey: value &#125;);</span></span>
+          </code></pre>
+        </section>
         <section
           className={`live-state phase-${ui.phase}${ui.userSpeaking ? " user-speaking" : ""}`}
           aria-live="polite"
@@ -240,11 +254,25 @@ export default function Home() {
         </section>
         <div className="controls">
           {!isConnected ? (
-            <button className="primary" disabled={isConnecting} onClick={() => void connect().catch((error) => dispatchUi({ type: "failed", message: describeError(error) }))}>{isConnecting ? "Connecting…" : "Connect microphone"}</button>
+            <button className="control-button primary" disabled={isConnecting} onClick={() => void connect().catch((error) => dispatchUi({ type: "failed", message: describeError(error) }))}>
+              <MicrophoneIcon />
+              <span>{isConnecting ? "Connecting…" : "Connect microphone"}</span>
+            </button>
           ) : (
-            <button className="primary live" onClick={disconnect}>End session</button>
+            <button className="control-button primary live" onClick={disconnect}>
+              <StopIcon />
+              <span>End session</span>
+            </button>
           )}
-          <button onClick={() => setMuted((value) => !value)} disabled={!sessionRef.current}>{muted ? "Unmute" : "Mute"}</button>
+          <button
+            className={`control-button mute-control${muted ? " is-muted" : ""}`}
+            onClick={() => setMuted((value) => !value)}
+            disabled={!sessionRef.current}
+            aria-pressed={muted}
+          >
+            {muted ? <MutedIcon /> : <MicrophoneLevelIcon />}
+            <span>{muted ? "Unmute microphone" : "Mute microphone"}</span>
+          </button>
         </div>
       </section>
       <aside>
@@ -280,6 +308,22 @@ export default function Home() {
       </aside>
     </main>
   );
+}
+
+function MicrophoneIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v3M7 18h6" /></svg>;
+}
+
+function MicrophoneLevelIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v3M7 18h6" /></svg>;
+}
+
+function MutedIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7V5a3 3 0 0 1 5.7-1.3M13 8v1.5a3 3 0 0 1-.4 1.5M4.5 9.5a5.5 5.5 0 0 0 8.7 4.5M10 15v3M7 18h6M3 3l14 14" /></svg>;
+}
+
+function StopIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="1.5" /></svg>;
 }
 
 function describeError(error: unknown) {

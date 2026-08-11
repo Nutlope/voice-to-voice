@@ -23,6 +23,7 @@ class FakeProvider implements RealtimeProvider {
   transcriptionEvents: Array<(event: JsonObject) => void> = [];
   transcriptionInputs: Array<Parameters<RealtimeProvider["openTranscription"]>[0]> = [];
   speechEvent?: (event: JsonObject) => void;
+  speechInputs: Array<Parameters<RealtimeProvider["openSpeech"]>[0]> = [];
   replies: ReplyStreamEvent[][] = [];
   committed = 0;
   holdReply = false;
@@ -43,6 +44,7 @@ class FakeProvider implements RealtimeProvider {
     }
   }
   async openSpeech(input: Parameters<RealtimeProvider["openSpeech"]>[0]): Promise<SpeechConnection> {
+    this.speechInputs.push(input);
     this.speechEvent = input.onEvent;
     return {
       append() {},
@@ -115,6 +117,23 @@ describe("OpenAI-compatible session state", () => {
     expect(types.indexOf("response.created")).toBeLessThan(types.indexOf("response.output_audio_transcript.delta"));
     expect(types.indexOf("response.output_audio_transcript.delta")).toBeLessThan(types.indexOf("response.output_audio.delta"));
     expect(types.at(-1)).toBe("response.done");
+    expect(provider.speechInputs[0]?.language).toBe("en");
+  });
+
+  it("opens TTS with the language detected from the assistant reply", async () => {
+    const { provider, socket } = await setup();
+    provider.replies.push([
+      { type: "text-delta", delta: "La Luna è l'unico satellite naturale della Terra." },
+      { type: "done", finishReason: "stop" },
+    ]);
+    socket.receive({
+      type: "conversation.item.create",
+      item: { type: "message", role: "user", content: [{ type: "input_text", text: "Dimmi qualcosa sulla Luna" }] },
+    });
+    socket.receive({ type: "response.create" });
+
+    await waitFor(() => socket.sent.some((event) => event.type === "response.done"));
+    expect(provider.speechInputs[0]?.language).toBe("it");
   });
 
   it("round trips a client function tool result and resumes generation", async () => {

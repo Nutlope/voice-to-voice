@@ -1,6 +1,7 @@
 import { fitConversation } from "./context.js";
 import { pcm16DurationMs, resamplePcm16Base64 } from "./audio.js";
 import { realtimeId } from "./ids.js";
+import { detectSpeechLanguage } from "./language.js";
 import { applySessionUpdate, createSessionConfig } from "./session-config.js";
 import {
   RealtimeProtocolError,
@@ -25,6 +26,8 @@ type ActiveResponse = {
   assistantItem?: JsonObject;
   assistantMessage?: TextConversationMessage;
   transcript: string;
+  speechBuffer: string;
+  speechLanguage?: string;
   audioMs: number;
   replyDone: boolean;
   ttsDone: boolean;
@@ -471,6 +474,7 @@ export class RealtimeSession {
       controller: new AbortController(),
       output: [],
       transcript: "",
+      speechBuffer: "",
       audioMs: 0,
       replyDone: false,
       ttsDone: false,
@@ -505,6 +509,7 @@ export class RealtimeSession {
         this.speech = undefined;
         this.speechPromise = undefined;
       } else {
+        await this.flushSpeechBuffer(response, true);
         this.speech?.commit();
       }
       this.maybeFinalize(response);
@@ -524,6 +529,7 @@ export class RealtimeSession {
       sessionId: `${this.id}_${response.id}`,
       model: this.options.models.tts,
       voice: this.config.audio.output.voice,
+      language: response.speechLanguage ?? "en",
       signal: response.controller.signal,
       onEvent: (event) => this.handleSpeechEvent(response, event),
     });
@@ -548,9 +554,24 @@ export class RealtimeSession {
       content_index: 0,
       delta,
     });
+    if (response.speechLanguage) {
+      this.speechPromise ??= this.openSpeech(response);
+      const speech = this.speech ?? await this.speechPromise;
+      speech?.append(delta);
+    } else {
+      response.speechBuffer += delta;
+      await this.flushSpeechBuffer(response, false);
+    }
+  }
+
+  private async flushSpeechBuffer(response: ActiveResponse, force: boolean) {
+    if (!response.speechBuffer) return;
+    if (!force && response.speechBuffer.length < 24 && !/[.!?]\s*$/u.test(response.speechBuffer)) return;
+    response.speechLanguage = detectSpeechLanguage(response.speechBuffer);
     this.speechPromise ??= this.openSpeech(response);
     const speech = this.speech ?? await this.speechPromise;
-    speech?.append(delta);
+    speech?.append(response.speechBuffer);
+    response.speechBuffer = "";
   }
 
   private createAssistantOutput(response: ActiveResponse) {

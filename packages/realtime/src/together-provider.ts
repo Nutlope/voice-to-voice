@@ -202,12 +202,14 @@ export class TogetherRealtimeProvider implements RealtimeProvider {
     sessionId: string;
     model: string;
     voice: string;
+    language: string;
     signal: AbortSignal;
     onEvent: (event: JsonObject) => void;
   }): Promise<SpeechConnection> {
     const url = new URL("wss://api.together.ai/v1/audio/speech/websocket");
     url.searchParams.set("model", input.model);
     url.searchParams.set("voice", input.voice);
+    url.searchParams.set("language", input.language);
     url.searchParams.set("response_format", "pcm");
     url.searchParams.set("sample_rate", "24000");
     url.searchParams.set("segment", "immediate");

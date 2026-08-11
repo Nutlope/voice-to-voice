@@ -138,6 +138,7 @@ export interface RealtimeProvider {
     sessionId: string;
     model: string;
     voice: string;
+    language: string;
     signal: AbortSignal;
     onEvent: (event: JsonObject) => void;
   }): Promise<SpeechConnection>;
