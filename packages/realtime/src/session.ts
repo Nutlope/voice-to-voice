@@ -41,6 +41,7 @@ export class RealtimeSession {
   private transcription: TranscriptionConnection | undefined;
   private speech: SpeechConnection | undefined;
   private transcriptionPromise: Promise<void> | undefined;
+  private transcriptionGeneration = 0;
   private speechPromise: Promise<SpeechConnection> | undefined;
   private pendingAudio: string[] = [];
   private history: ConversationMessage[] = [];
@@ -204,15 +205,19 @@ export class RealtimeSession {
   }
 
   private async openTranscription() {
+    const generation = ++this.transcriptionGeneration;
     try {
       const connection = await this.provider.openTranscription({
         sessionId: this.id,
-        model: this.options.models.stt,
+        model: this.options.models.realtimeStt ?? this.options.models.stt,
+        finalModel: this.options.models.stt,
         turnDetection: this.config.audio.input.turn_detection,
         signal: this.controller.signal,
-        onEvent: (event) => this.handleTranscriptionEvent(event),
+        onEvent: (event) => {
+          if (generation === this.transcriptionGeneration) this.handleTranscriptionEvent(event);
+        },
       });
-      if (this.stopped) return connection.close();
+      if (this.stopped || generation !== this.transcriptionGeneration) return connection.close();
       this.transcription = connection;
       for (const audio of this.pendingAudio.splice(0)) connection.append(audio);
     } catch (error) {

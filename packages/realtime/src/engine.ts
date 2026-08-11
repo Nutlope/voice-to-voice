@@ -109,6 +109,9 @@ function validateEngineOptions(options: RealtimeEngineOptions) {
       throw new Error(`models.${key} is required; realtime model IDs have no package defaults.`);
     }
   }
+  if (options.models.realtimeStt !== undefined && !options.models.realtimeStt.trim()) {
+    throw new Error("models.realtimeStt must be a non-empty model ID when provided.");
+  }
   if (!Number.isSafeInteger(options.replyContextWindowTokens) || options.replyContextWindowTokens <= 0) {
     throw new Error("replyContextWindowTokens must be a positive integer.");
   }

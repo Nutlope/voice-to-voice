@@ -20,6 +20,8 @@ class FakeSocket extends EventEmitter implements RealtimeSocket {
 
 class FakeProvider implements RealtimeProvider {
   transcriptionEvent?: (event: JsonObject) => void;
+  transcriptionEvents: Array<(event: JsonObject) => void> = [];
+  transcriptionInputs: Array<Parameters<RealtimeProvider["openTranscription"]>[0]> = [];
   speechEvent?: (event: JsonObject) => void;
   replies: ReplyStreamEvent[][] = [];
   committed = 0;
@@ -27,7 +29,9 @@ class FakeProvider implements RealtimeProvider {
   silentSpeechCommit = false;
 
   async openTranscription(input: Parameters<RealtimeProvider["openTranscription"]>[0]): Promise<TranscriptionConnection> {
+    this.transcriptionInputs.push(input);
     this.transcriptionEvent = input.onEvent;
+    this.transcriptionEvents.push(input.onEvent);
     return { append() {}, commit: () => { this.committed += 1; }, close() {} };
   }
   async *streamReply(input: Parameters<RealtimeProvider["streamReply"]>[0]): AsyncIterable<ReplyStreamEvent> {
@@ -52,6 +56,26 @@ class FakeProvider implements RealtimeProvider {
     };
   }
 }
+
+it("uses a separate realtime STT model while keeping the configured STT authoritative", async () => {
+  const provider = new FakeProvider();
+  const engine = createRealtimeEngine({
+    realtimeSecret: "test-secret-with-at-least-32-bytes",
+    models: { stt: "final-stt", realtimeStt: "vad-stt", reply: "reply", tts: "tts" },
+    replyContextWindowTokens: 4096,
+    maxOutputTokens: 256,
+    defaultVoice: "voice one",
+    provider,
+  });
+  const secret = await engine.createClientSecret();
+  const socket = new FakeSocket();
+  engine.acceptSocket(socket, secret.value);
+  await tick();
+
+  expect(provider.transcriptionInputs[0]?.model).toBe("vad-stt");
+  expect(provider.transcriptionInputs[0]?.finalModel).toBe("final-stt");
+  expect(secret.session.audio.input.transcription.model).toBe("final-stt");
+});
 
 async function setup(provider = new FakeProvider()) {
   const engine = createRealtimeEngine({
@@ -148,6 +172,24 @@ describe("OpenAI-compatible session state", () => {
     provider.transcriptionEvent?.({ type: "input_audio_buffer.speech_started", audio_start_ms: 10 });
     await waitFor(() => socket.sent.some((event) =>
       event.type === "response.done" && (event.response as JsonObject | undefined)?.status === "cancelled"));
+  });
+
+  it("ignores transcription events from a replaced connection", async () => {
+    const { provider, socket } = await setup();
+    const staleConnection = provider.transcriptionEvents[0];
+    socket.receive({
+      type: "session.update",
+      session: { audio: { input: { turn_detection: null } } },
+    });
+    await waitFor(() => provider.transcriptionEvents.length === 2);
+    staleConnection?.({
+      type: "conversation.item.input_audio_transcription.completed",
+      transcript: "translated stale fragment",
+    });
+    await tick();
+    expect(socket.sent.some((event) =>
+      event.type === "conversation.item.input_audio_transcription.completed" &&
+      event.transcript === "translated stale fragment")).toBe(false);
   });
 });
 

@@ -27,8 +27,8 @@ try {
   await waitForServer(baseUrl);
   const audio = await loadFixtureAt24Khz();
 
-  if (process.env.E2E_SCENARIO === "italian-language") {
-    await runItalianLanguageScenario();
+  if (process.env.E2E_SCENARIO === "italian-language" || process.env.E2E_SCENARIO === "italian-transcription") {
+    await runItalianLanguageScenario(process.env.E2E_SCENARIO === "italian-transcription");
     await writeReport();
     return;
   }
@@ -214,8 +214,13 @@ try {
   server?.kill("SIGTERM");
 }
 
-async function runItalianLanguageScenario() {
-  await run("Italian input and reply preserve the spoken language", async () => {
+async function runItalianLanguageScenario(transcriptionOnly = false) {
+  const scenarios = [
+    { fixture: "voice-paired-it.pcm", expectedInput: /\b(ciao|dimmi|breve|fatto|luna)\b/i },
+    { fixture: "stt-bench-it-1.pcm", expectedInput: /\b(ciao|puoi|tempo|roma|oggi)\b/i },
+    { fixture: "stt-bench-it-2.pcm", expectedInput: /\b(vorrei|prenotare|tavolo|persone|stasera)\b/i },
+  ];
+  for (const scenario of scenarios) await run(`Italian language reliability: ${scenario.fixture}`, async () => {
     const client = await BrowserLikeClient.connect(baseUrl, websocketUrl, {});
     await client.waitFor("session.created");
     client.send({
@@ -224,6 +229,18 @@ async function runItalianLanguageScenario() {
         type: "realtime",
         model: "together-realtime",
         instructions: DEMO_AGENT_INSTRUCTIONS,
+        tools: [{
+          type: "function",
+          name: "get_local_time",
+          description: "Get the current local time in a requested IANA time zone.",
+          parameters: {
+            type: "object",
+            properties: { timeZone: { type: "string" } },
+            required: ["timeZone"],
+            additionalProperties: false,
+          },
+        }],
+        tool_choice: "none",
         audio: {
           input: { transcription: null, turn_detection: null },
           output: { voice: DEMO_VOICE },
@@ -231,19 +248,43 @@ async function runItalianLanguageScenario() {
       },
     });
     await client.waitFor("session.updated");
-    await client.streamAudio(await loadPcm16At24Khz("voice-paired-it.pcm"), true);
+    await client.streamAudio(await loadPcm16At24Khz(scenario.fixture), true);
+    await client.streamAudio(Buffer.alloc(24_000), true);
     client.send({ type: "input_audio_buffer.commit" });
-    client.send({ type: "response.create" });
     const inputDone = await client.waitFor("conversation.item.input_audio_transcription.completed", 45_000);
-    const outputDone = await client.waitFor("response.output_audio_transcript.done", 45_000);
-    await client.waitFor("response.done", 45_000);
     const inputTranscript = String(inputDone.transcript ?? "");
+    assert(scenario.expectedInput.test(inputTranscript), `Italian input was translated or mistranscribed: ${inputTranscript}`);
+    if (transcriptionOnly) {
+      client.close();
+      return { inputTranscript };
+    }
+    client.send({ type: "response.create" });
+    const replyTerminal = await client.waitForWhere(
+      (event) => event.type === "response.output_audio_transcript.done" || event.type === "response.function_call_arguments.done",
+      45_000,
+    );
+    const unexpectedToolCall = replyTerminal.type === "response.function_call_arguments.done" ? replyTerminal : undefined;
+    assert(!unexpectedToolCall, `Assistant called a tool for an unrelated question: ${JSON.stringify(unexpectedToolCall)}`);
+    const outputDone = replyTerminal;
+    await client.waitFor("response.done", 45_000);
     const outputTranscript = String(outputDone.transcript ?? "");
     client.close();
-    assert(/\b(ciao|dimmi|breve|fatto|luna)\b/i.test(inputTranscript), `Italian input was translated or mistranscribed: ${inputTranscript}`);
-    assert(/\b(il|la|un|una|della|luna|è|sono|può|circa)\b/i.test(outputTranscript), `Assistant did not reply in Italian: ${outputTranscript}`);
+    assert(
+      isLikelyItalian(outputTranscript),
+      `Assistant did not reply in Italian. Input transcript: ${inputTranscript}. Output transcript: ${outputTranscript}`,
+    );
+    assert(!/\b(time|local time|check the time|ora locale|controllare l'ora)\b/i.test(outputTranscript), `Assistant mentioned time for a non-time question: ${outputTranscript}`);
     return { inputTranscript, outputTranscript };
   });
+}
+
+function isLikelyItalian(text: string) {
+  const words = text.toLocaleLowerCase("it").match(/[\p{L}']+/gu) ?? [];
+  const italian = new Set(["ciao", "il", "lo", "la", "gli", "le", "un", "una", "di", "che", "è", "non", "per", "puoi", "sulla", "della", "sono", "come", "mi", "ti", "oggi", "fa", "circa", "gradi", "con", "cielo", "nessuna", "prevista", "certamente", "quale", "vorresti", "prenotare", "tavolo", "persone", "stasera"]);
+  const english = new Set(["the", "is", "are", "you", "your", "of", "to", "and", "not", "time", "don't", "i"]);
+  const italianScore = words.filter((word) => italian.has(word)).length;
+  const englishScore = words.filter((word) => english.has(word)).length;
+  return italianScore >= 2 && italianScore > englishScore;
 }
 
 async function writeReport() {
@@ -286,11 +327,12 @@ class BrowserLikeClient {
     if (!response.ok) throw new Error(`Client-secret request failed: ${response.status} ${await response.text()}`);
     const secret = (await response.json()) as { value: string };
     const socket = new WebSocket(url, ["realtime", `openai-insecure-api-key.${secret.value}`, "openai-beta.realtime-v1"]);
+    const client = new BrowserLikeClient(socket);
     await new Promise<void>((resolveOpen, reject) => {
       socket.once("open", resolveOpen);
       socket.once("error", reject);
     });
-    return new BrowserLikeClient(socket);
+    return client;
   }
 
   send(event: Record<string, unknown>) { this.socket.send(JSON.stringify(event)); }
@@ -325,7 +367,7 @@ class BrowserLikeClient {
     return new Promise<Record<string, unknown>>((resolveEvent, reject) => {
       const timeout = setTimeout(() => {
         this.waiters.delete(check);
-        reject(new Error(`Timed out after ${timeoutMs} ms. Last events: ${this.events.slice(-8).map((event) => event.type).join(", ")}`));
+        reject(new Error(`Timed out after ${timeoutMs} ms. Last events: ${JSON.stringify(this.events.slice(-8))}`));
       }, timeoutMs);
       const check = () => {
         const event = find();

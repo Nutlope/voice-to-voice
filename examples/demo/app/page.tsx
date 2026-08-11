@@ -16,33 +16,34 @@ import {
 } from "@/lib/realtime-ui";
 import { DEMO_AGENT_INSTRUCTIONS } from "@/lib/agent";
 import { DEMO_VOICE } from "@/lib/voice";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-
-const getLocalTime = tool({
-  name: "get_local_time",
-  description: "Get the current local time in a requested IANA time zone.",
-  parameters: z.object({ timeZone: z.string().default("Europe/Rome") }),
-  async execute({ timeZone }) {
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
-    return new Intl.DateTimeFormat("en", {
-      timeZone,
-      dateStyle: "full",
-      timeStyle: "long",
-    }).format(new Date());
-  },
-});
-
-const agent = new RealtimeAgent({
-  name: "Together Voice",
-  instructions: DEMO_AGENT_INSTRUCTIONS,
-  tools: [getLocalTime],
-});
 
 export default function Home() {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const captureRef = useRef<Awaited<ReturnType<typeof startCapture>> | null>(null);
   const playbackRef = useRef<PcmPlayback | null>(null);
+  const agent = useMemo(() => new RealtimeAgent({
+    name: "Together Voice",
+    instructions: DEMO_AGENT_INSTRUCTIONS,
+    tools: [tool({
+      name: "get_local_time",
+      description: "Get the current local time in a requested IANA time zone.",
+      parameters: z.object({ timeZone: z.string() }),
+      async execute({ timeZone }) {
+        sessionRef.current?.transport.sendEvent({
+          type: "session.update",
+          session: { tool_choice: "none" },
+        });
+        await new Promise((resolve) => window.setTimeout(resolve, 150));
+        return new Intl.DateTimeFormat("en", {
+          timeZone,
+          dateStyle: "full",
+          timeStyle: "long",
+        }).format(new Date());
+      },
+    })],
+  }), []);
   const [ui, setUi] = useState(initialRealtimeUiState);
   const [muted, setMuted] = useState(false);
   const [protocolEvents, setProtocolEvents] = useState<string[]>([]);
@@ -65,7 +66,7 @@ export default function Home() {
           type: "realtime",
           model: "together-realtime",
           audio: {
-            input: { turn_detection: { type: "server_vad", create_response: true, interrupt_response: true } },
+            input: { turn_detection: { type: "server_vad", create_response: false, interrupt_response: true } },
             output: { voice: DEMO_VOICE },
           },
         },
@@ -86,11 +87,12 @@ export default function Home() {
       model: "together-realtime" as never,
       tracingDisabled: true,
       config: {
+        toolChoice: "none",
         audio: {
           input: {
             format: "pcm16",
             transcription: null,
-            turnDetection: { type: "server_vad", createResponse: true, interruptResponse: true },
+            turnDetection: { type: "server_vad", createResponse: false, interruptResponse: true },
           },
           output: { format: "pcm16", voice: DEMO_VOICE },
         },
@@ -105,13 +107,20 @@ export default function Home() {
         if (sessionUpdatedCount >= 2) resolveToolsReady?.();
       }
       if (
-        smokeMode === "turn" &&
         type === "response.function_call_arguments.done"
       ) {
         session.transport.sendEvent({
           type: "session.update",
-          session: { tool_choice: "auto" },
+          session: { tool_choice: "none" },
         });
+      }
+      if (type === "conversation.item.input_audio_transcription.completed" && smokeMode !== "turn") {
+        const transcript = String((event as { transcript?: unknown }).transcript ?? "");
+        session.transport.sendEvent({
+          type: "session.update",
+          session: { tool_choice: explicitlyRequestsLocalTime(transcript) ? "required" : "none" },
+        });
+        session.transport.sendEvent({ type: "response.create" });
       }
       if (type === "input_audio_buffer.speech_started") {
         dispatchUi({ type: "speech_started" });
@@ -281,6 +290,10 @@ function describeError(error: unknown) {
 
 function delay(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function explicitlyRequestsLocalTime(transcript: string) {
+  return /\b(?:what time|current time|local time|che ore|che ora|quelle heure|qué hora|que horas|wie spät|wie viel uhr)\b/iu.test(transcript);
 }
 
 async function startCapture(onAudio: (audio: ArrayBuffer) => void) {

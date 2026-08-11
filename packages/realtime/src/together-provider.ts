@@ -28,6 +28,7 @@ export class TogetherRealtimeProvider implements RealtimeProvider {
   async openTranscription(input: {
     sessionId: string;
     model: string;
+    finalModel?: string;
     turnDetection: TurnDetection;
     signal: AbortSignal;
     onEvent: (event: JsonObject) => void;
@@ -48,9 +49,49 @@ export class TogetherRealtimeProvider implements RealtimeProvider {
     }
 
     const socket = await connectWithSingleRetry(url, this.getApiKey(), input.signal);
+    const finalModel = input.finalModel ?? input.model;
+    const requiresBatchTranscription = finalModel !== input.model || input.model.startsWith("openai/whisper");
+    const audioChunks: Buffer[] = [];
+    let audioBytes = 0;
+    let transcriptionChain = Promise.resolve();
+    const completeTranscription = (event: JsonObject = {}) => {
+      if (audioBytes === 0) return;
+      const audio = Buffer.concat(audioChunks.splice(0));
+      audioBytes = 0;
+      transcriptionChain = transcriptionChain.then(async () => {
+        try {
+          const transcript = await this.transcribeOriginalLanguage(audio, finalModel, input.signal);
+          input.onEvent({
+            ...event,
+            type: "conversation.item.input_audio_transcription.completed",
+            transcript,
+          });
+        } catch (error) {
+          input.onEvent({
+            type: "conversation.item.input_audio_transcription.failed",
+            error: { message: normalizeError(error).message },
+          });
+        }
+      });
+    };
     socket.on("message", (data) => {
       const event = parseObject(data.toString());
-      if (event) input.onEvent(event);
+      if (!event) return;
+      if (event.type === "conversation.item.input_audio_transcription.delta") {
+        input.onEvent(event);
+        return;
+      }
+      if (event.type === "conversation.item.input_audio_transcription.completed") {
+        if (requiresBatchTranscription) {
+          completeTranscription(event);
+        } else {
+          audioChunks.length = 0;
+          audioBytes = 0;
+          input.onEvent(event);
+        }
+        return;
+      }
+      input.onEvent(event);
     });
     socket.on("error", (error) => input.onEvent(providerError("transcription_error", error)));
     socket.on("close", (code, reason) => {
@@ -62,15 +103,46 @@ export class TogetherRealtimeProvider implements RealtimeProvider {
 
     return {
       append(audio) {
+        if (requiresBatchTranscription) {
+          const chunk = Buffer.from(audio, "base64");
+          audioChunks.push(chunk);
+          audioBytes += chunk.byteLength;
+          while (audioBytes > 16_000 * 2 * 60 && audioChunks.length > 1) {
+            audioBytes -= audioChunks.shift()?.byteLength ?? 0;
+          }
+        }
         sendJson(socket, { type: "input_audio_buffer.append", audio });
       },
       commit() {
+        if (requiresBatchTranscription) completeTranscription();
         sendJson(socket, { type: "input_audio_buffer.commit" });
       },
       close() {
         socket.close();
       },
     };
+  }
+
+  private async transcribeOriginalLanguage(audio: Buffer, model: string, signal: AbortSignal) {
+    const form = new FormData();
+    form.set("model", model);
+    form.set("language", "auto");
+    if (model.startsWith("openai/whisper")) {
+      form.set("prompt", "Transcribe verbatim in the original spoken language. Never translate to English.");
+    }
+    form.set("response_format", "json");
+    form.set("temperature", "0");
+    form.set("file", new File([pcm16ToWav(audio, 16_000)], "speech.wav", { type: "audio/wav" }));
+    const response = await fetch(`${TOGETHER_BASE_URL}/audio/transcriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.getApiKey()}` },
+      body: form,
+      signal,
+    });
+    if (!response.ok) throw new Error(`Together transcription failed (${response.status}): ${await response.text()}`);
+    const result = await response.json() as { text?: unknown };
+    if (typeof result.text !== "string") throw new Error("Together transcription response did not contain text.");
+    return result.text.trim();
   }
 
   async *streamReply(input: {
@@ -207,6 +279,24 @@ const voiceReplyFetch: typeof fetch = async (input, init) => {
   }
   return fetch(input, init);
 };
+
+function pcm16ToWav(pcm: Buffer, sampleRate: number) {
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.byteLength, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.byteLength, 40);
+  return Buffer.concat([header, pcm]);
+}
 
 function toAiTools(definitions: RealtimeTool[]): ToolSet {
   return Object.fromEntries(

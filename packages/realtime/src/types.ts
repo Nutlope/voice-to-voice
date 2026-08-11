@@ -51,6 +51,7 @@ export type SessionUpdateHook = (
 
 export type RealtimeModels = {
   stt: string;
+  realtimeStt?: string;
   reply: string;
   tts: string;
 };
@@ -119,6 +120,7 @@ export interface RealtimeProvider {
   openTranscription(input: {
     sessionId: string;
     model: string;
+    finalModel?: string;
     turnDetection: TurnDetection;
     signal: AbortSignal;
     onEvent: (event: JsonObject) => void;
