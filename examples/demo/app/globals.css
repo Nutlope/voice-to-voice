@@ -319,28 +319,30 @@ h1 {
 }
 
 .controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  width: min(100%, 400px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
   margin-top: 1rem;
 }
 
 button {
-  min-height: 44px;
+  min-width: 0;
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
-  padding: 0.7rem 0.95rem;
+  padding: 0.75rem 0.9rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   color: #000000;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
   cursor: pointer;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 650;
+  white-space: nowrap;
   transition-property: transform, box-shadow, background-color, color;
   transition-duration: 150ms;
   transition-timing-function: ease-out;
@@ -369,8 +371,8 @@ button:disabled {
 }
 
 .control-button svg {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.15rem;
+  height: 1.15rem;
   flex: 0 0 auto;
   fill: none;
   stroke: currentColor;
@@ -393,14 +395,14 @@ button.primary:hover:not(:disabled) {
 
 button.live {
   color: #ffffff;
-  background: #d94329;
-  box-shadow: 0 0 0 1px #d94329, 0 6px 16px rgba(217, 67, 41, 0.18);
+  background: #b42318;
+  box-shadow: 0 0 0 1px #b42318, 0 6px 16px rgba(180, 35, 24, 0.16);
 }
 
 button.live:hover:not(:disabled) {
   color: #ffffff;
-  background: #bd351f;
-  box-shadow: 0 0 0 1px #bd351f, 0 8px 20px rgba(217, 67, 41, 0.22);
+  background: #912018;
+  box-shadow: 0 0 0 1px #912018, 0 8px 20px rgba(180, 35, 24, 0.2);
 }
 
 .mute-control {

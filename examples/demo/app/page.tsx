@@ -19,6 +19,27 @@ import { DEMO_VOICE } from "@/lib/voice";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
+const MIGRATION_LINES = [
+  { kind: "removed", text: 'import { RealtimeAgent, RealtimeSession } from "@openai/agents/realtime";' },
+  { kind: "added", text: "import {" },
+  { kind: "added", text: "  OpenAIRealtimeWebSocket," },
+  { kind: "added", text: "  RealtimeAgent," },
+  { kind: "added", text: "  RealtimeSession," },
+  { kind: "added", text: '} from "@openai/agents/realtime";' },
+  { kind: "spacer", text: "" },
+  { kind: "removed", text: "const session = new RealtimeSession(agent);" },
+  { kind: "added", text: 'const protocol = location.protocol === "https:" ? "wss:" : "ws:";' },
+  { kind: "added", text: "const transport = new OpenAIRealtimeWebSocket({" },
+  { kind: "added", text: "  url: `${protocol}//${location.host}/api/realtime`," },
+  { kind: "added", text: "});" },
+  { kind: "added", text: "const session = new RealtimeSession(agent, { transport });" },
+  { kind: "spacer", text: "" },
+  { kind: "removed", text: "await session.connect({ apiKey: OPENAI_API_KEY });" },
+  { kind: "added", text: 'const secret = await fetch("/api/realtime/client_secrets", { method: "POST" });' },
+  { kind: "added", text: "const { value } = await secret.json() as { value: string };" },
+  { kind: "added", text: "await session.connect({ apiKey: value });" },
+] as const;
+
 export default function Home() {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const captureRef = useRef<Awaited<ReturnType<typeof startCapture>> | null>(null);
@@ -226,20 +247,17 @@ export default function Home() {
         <section className="code-change" aria-labelledby="code-change-title">
           <div className="code-change-header">
             <div>
-              <span className="code-kicker">Migration</span>
-              <strong id="code-change-title">Two changes. Same agent.</strong>
+              <span className="code-kicker">Client migration</span>
+              <strong id="code-change-title">OpenAI Agents SDK → Together</strong>
             </div>
             <span className="language-badge">TypeScript</span>
           </div>
-          <pre aria-label="TypeScript migration diff"><code>
-            <span className="code-line removed"><span className="diff-mark">−</span><span>const session = new RealtimeSession(agent);</span></span>
-            <span className="code-line added"><span className="diff-mark">+</span><span>const transport = new OpenAIRealtimeWebSocket(&#123; url: wsBase + &quot;/api/realtime&quot; &#125;);</span></span>
-            <span className="code-line added"><span className="diff-mark">+</span><span>const session = new RealtimeSession(agent, &#123; transport &#125;);</span></span>
-            <span className="code-line spacer" aria-hidden="true"><span className="diff-mark"> </span><span /></span>
-            <span className="code-line removed"><span className="diff-mark">−</span><span>await session.connect(&#123; apiKey: OPENAI_API_KEY &#125;);</span></span>
-            <span className="code-line added"><span className="diff-mark">+</span><span>const &#123; value &#125; = await createClientSecret(&quot;/api/realtime/client_secrets&quot;);</span></span>
-            <span className="code-line added"><span className="diff-mark">+</span><span>await session.connect(&#123; apiKey: value &#125;);</span></span>
-          </code></pre>
+          <pre aria-label="TypeScript migration diff"><code>{MIGRATION_LINES.map((line, index) => (
+            <span className={`code-line ${line.kind}`} aria-hidden={line.kind === "spacer" || undefined} key={`${line.kind}-${index}`}>
+              <span className="diff-mark">{line.kind === "added" ? "+" : line.kind === "removed" ? "−" : " "}</span>
+              <span>{line.text}</span>
+            </span>
+          ))}</code></pre>
         </section>
         <section
           className={`live-state phase-${ui.phase}${ui.userSpeaking ? " user-speaking" : ""}`}
@@ -255,13 +273,13 @@ export default function Home() {
         <div className="controls">
           {!isConnected ? (
             <button className="control-button primary" disabled={isConnecting} onClick={() => void connect().catch((error) => dispatchUi({ type: "failed", message: describeError(error) }))}>
-              <MicrophoneIcon />
-              <span>{isConnecting ? "Connecting…" : "Connect microphone"}</span>
+              <AudioWaveIcon />
+              <span>{isConnecting ? "Connecting…" : "Connect"}</span>
             </button>
           ) : (
             <button className="control-button primary live" onClick={disconnect}>
               <StopIcon />
-              <span>End session</span>
+              <span>Disconnect</span>
             </button>
           )}
           <button
@@ -270,8 +288,8 @@ export default function Home() {
             disabled={!sessionRef.current}
             aria-pressed={muted}
           >
-            {muted ? <MutedIcon /> : <MicrophoneLevelIcon />}
-            <span>{muted ? "Unmute microphone" : "Mute microphone"}</span>
+            {muted ? <MicrophoneLevelIcon /> : <MutedIcon />}
+            <span>{muted ? "Unmute" : "Mute"}</span>
           </button>
         </div>
       </section>
@@ -310,8 +328,8 @@ export default function Home() {
   );
 }
 
-function MicrophoneIcon() {
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v3M7 18h6" /></svg>;
+function AudioWaveIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 8v4M6.25 5v10M10 2.5v15M13.75 6v8M17.5 8.5v3" /></svg>;
 }
 
 function MicrophoneLevelIcon() {
