@@ -20,24 +20,13 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
 const MIGRATION_LINES = [
-  { kind: "removed", text: 'import { RealtimeAgent, RealtimeSession } from "@openai/agents/realtime";' },
-  { kind: "added", text: "import {" },
-  { kind: "added", text: "  OpenAIRealtimeWebSocket," },
-  { kind: "added", text: "  RealtimeAgent," },
-  { kind: "added", text: "  RealtimeSession," },
-  { kind: "added", text: '} from "@openai/agents/realtime";' },
+  { kind: "context", text: 'import { OpenAIRealtimeWebSocket, RealtimeSession } from "@openai/agents/realtime";' },
   { kind: "spacer", text: "" },
   { kind: "removed", text: "const session = new RealtimeSession(agent);" },
-  { kind: "added", text: 'const protocol = location.protocol === "https:" ? "wss:" : "ws:";' },
-  { kind: "added", text: "const transport = new OpenAIRealtimeWebSocket({" },
-  { kind: "added", text: "  url: `${protocol}//${location.host}/api/realtime`," },
-  { kind: "added", text: "});" },
-  { kind: "added", text: "const session = new RealtimeSession(agent, { transport });" },
+  { kind: "added", text: 'const session = new RealtimeSession(agent, { transport: new OpenAIRealtimeWebSocket({ url: "/api/realtime?model=together-realtime" }) });' },
   { kind: "spacer", text: "" },
-  { kind: "removed", text: "await session.connect({ apiKey: OPENAI_API_KEY });" },
+  { kind: "removed", text: 'const secret = await fetch(OPENAI_CLIENT_SECRET_ENDPOINT, { method: "POST" });' },
   { kind: "added", text: 'const secret = await fetch("/api/realtime/client_secrets", { method: "POST" });' },
-  { kind: "added", text: "const { value } = await secret.json() as { value: string };" },
-  { kind: "added", text: "await session.connect({ apiKey: value });" },
 ] as const;
 
 export default function Home() {
@@ -95,9 +84,9 @@ export default function Home() {
     });
     if (!secretResponse.ok) throw new Error(await secretResponse.text());
     const secret = (await secretResponse.json()) as { value: string };
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/api/realtime?model=together-realtime`;
-    const transport = new OpenAIRealtimeWebSocket({ url });
+    const transport = new OpenAIRealtimeWebSocket({
+      url: "/api/realtime?model=together-realtime",
+    });
     let sessionUpdatedCount = 0;
     let resolveToolsReady: (() => void) | null = null;
     const toolsReady = new Promise<void>((resolve) => {
@@ -247,8 +236,8 @@ export default function Home() {
         <section className="code-change" aria-labelledby="code-change-title">
           <div className="code-change-header">
             <div>
-              <span className="code-kicker">Client migration</span>
-              <strong id="code-change-title">OpenAI Agents SDK → Together</strong>
+              <span className="code-kicker">2-line client migration</span>
+              <strong id="code-change-title">Point two calls at Together</strong>
             </div>
             <span className="language-badge">TypeScript</span>
           </div>
