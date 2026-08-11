@@ -47,21 +47,15 @@ const SERVER_SETUP_LINES = [
   { kind: "context", text: '  defaultVoice: "nonfiction man",' },
   { kind: "context", text: "});" },
   { kind: "spacer", text: "" },
-  { kind: "file", text: "// app/api/realtime/route.ts" },
+  { kind: "file", text: "// app/api/realtime/[[...realtime]]/route.ts" },
   { kind: "context", text: 'import { createNextRealtimeHandlers } from "@together/realtime/next";' },
   { kind: "context", text: 'import { realtimeEngine } from "@/lib/realtime";' },
   { kind: "spacer", text: "" },
   { kind: "context", text: 'export const runtime = "nodejs";' },
   { kind: "context", text: 'export const dynamic = "force-dynamic";' },
-  { kind: "context", text: "export const GET = createNextRealtimeHandlers(realtimeEngine).GET;" },
-  { kind: "spacer", text: "" },
-  { kind: "file", text: "// app/api/realtime/client_secrets/route.ts" },
-  { kind: "context", text: 'import { createNextRealtimeHandlers } from "@together/realtime/next";' },
-  { kind: "context", text: 'import { realtimeEngine } from "@/lib/realtime";' },
-  { kind: "spacer", text: "" },
-  { kind: "context", text: 'export const runtime = "nodejs";' },
-  { kind: "context", text: 'export const dynamic = "force-dynamic";' },
-  { kind: "context", text: "export const POST = createNextRealtimeHandlers(realtimeEngine).POST;" },
+  { kind: "context", text: "const handlers = createNextRealtimeHandlers(realtimeEngine);" },
+  { kind: "context", text: "export const GET = handlers.GET;" },
+  { kind: "context", text: "export const POST = handlers.POST;" },
 ] as const;
 
 export default function Home() {
@@ -360,7 +354,7 @@ export default function Home() {
           <div className="code-change-header">
             <div>
               <span className="code-kicker">Required server setup</span>
-              <strong id="server-setup-title">Configure models and expose both routes</strong>
+              <strong id="server-setup-title">Configure models and expose one catch-all route</strong>
             </div>
             <span className="language-badge">Next.js</span>
           </div>

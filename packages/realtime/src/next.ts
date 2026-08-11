@@ -4,13 +4,19 @@ import { RealtimeProtocolError, type RealtimeSocket } from "./types.js";
 
 export type NextRealtimeAdapterOptions = {
   allowedOrigins?: string[];
+  realtimePath?: string;
+  clientSecretPath?: string;
 };
 
 export function createNextRealtimeHandlers(
   engine: RealtimeEngine,
   options: NextRealtimeAdapterOptions = {},
 ) {
+  const realtimePath = options.realtimePath ?? "/api/realtime";
+  const clientSecretPath = options.clientSecretPath ?? "/api/realtime/client_secrets";
+
   const POST = async (request: Request) => {
+    if (new URL(request.url).pathname !== clientSecretPath) return routeNotFound();
     try {
       const body = await request.json().catch(() => ({}));
       const result = await engine.createClientSecret(body);
@@ -21,6 +27,7 @@ export function createNextRealtimeHandlers(
   };
 
   const GET = async (request: Request) => {
+    if (new URL(request.url).pathname !== realtimePath) return routeNotFound();
     try {
       assertOrigin(request.headers.get("origin"), options.allowedOrigins);
       const url = new URL(request.url);
@@ -46,6 +53,20 @@ export function createNextRealtimeHandlers(
   };
 
   return { POST, GET };
+}
+
+function routeNotFound() {
+  return Response.json(
+    {
+      error: {
+        type: "invalid_request_error",
+        code: "route_not_found",
+        message: "Realtime route not found.",
+        param: null,
+      },
+    },
+    { status: 404, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 function upgradeStatus(error: unknown) {

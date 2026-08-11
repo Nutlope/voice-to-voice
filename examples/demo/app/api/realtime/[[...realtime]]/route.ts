@@ -6,3 +6,4 @@ export const dynamic = "force-dynamic";
 
 const handlers = createNextRealtimeHandlers(realtimeEngine);
 export const GET = handlers.GET;
+export const POST = handlers.POST;

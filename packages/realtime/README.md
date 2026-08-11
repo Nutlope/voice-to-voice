@@ -72,27 +72,20 @@ so the credential is not echoed back.
 
 ## Next.js adapter
 
-Create the engine in a server-only module. Then expose one handler at each
-route. These routes require the Node.js runtime.
+Create the engine in a server-only module. Then expose both endpoints from one
+optional catch-all route. This route requires the Node.js runtime.
 
 ```ts
-// app/api/realtime/client_secrets/route.ts
+// app/api/realtime/[[...realtime]]/route.ts
 import { createNextRealtimeHandlers } from "@together/realtime/next";
 import { engine } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const POST = createNextRealtimeHandlers(engine).POST;
-```
 
-```ts
-// app/api/realtime/route.ts
-import { createNextRealtimeHandlers } from "@together/realtime/next";
-import { engine } from "@/lib/realtime";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const GET = createNextRealtimeHandlers(engine).GET;
+const handlers = createNextRealtimeHandlers(engine);
+export const GET = handlers.GET;
+export const POST = handlers.POST;
 ```
 
 The WebSocket handler uses Vercel's experimental upgrade helper when deployed
