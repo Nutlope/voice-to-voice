@@ -3,15 +3,24 @@ import { cx } from "./utils";
 
 export function VoiceNotice({ message }: { message: string }) {
   const normalizedMessage = message.toLowerCase();
-  const isLimitNotice = normalizedMessage.includes("time limit");
+  const isLimitNotice =
+    normalizedMessage.includes("time limit") ||
+    normalizedMessage.includes("daily") ||
+    normalizedMessage.includes("free minutes");
   const isDisconnectNotice = normalizedMessage.includes("connection lost");
   const Icon = isLimitNotice ? Clock3 : TriangleAlert;
   const title = isLimitNotice
-    ? "Call time reached"
+    ? normalizedMessage.includes("daily") || normalizedMessage.includes("free minutes")
+      ? "Daily limit reached"
+      : "Call time reached"
     : isDisconnectNotice
       ? "Call disconnected"
       : "Something went wrong";
-  const detail = isLimitNotice ? "Start a new call when you're ready." : message;
+  const detail = isLimitNotice
+    ? normalizedMessage.includes("daily") || normalizedMessage.includes("free minutes")
+      ? message
+      : "Start a new call when you're ready."
+    : message;
 
   return (
     <div className="rounded-[22px] bg-white/64 px-3.5 py-3 shadow-[0_0_0_1px_rgba(255,255,255,0.62),0_10px_28px_rgba(65,42,78,0.09)] backdrop-blur-xl">

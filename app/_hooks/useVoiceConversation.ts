@@ -83,6 +83,14 @@ type ServerEvent =
   | { type: "audio.delta"; audio: string; sampleRate: number; itemId?: string }
   | { type: "audio.done" }
   | { type: "audio.clear" }
+  | {
+      type: "quota";
+      limitCalls: number;
+      limitMinutes: number;
+      remainingCalls: number;
+      remainingSeconds: number;
+      resetAt: number;
+    }
   | ({ type: "tool.activity" } & ToolActivityItem)
   | {
       type: "reply.debug";
@@ -141,6 +149,14 @@ const MAX_VISIBLE_CONVERSATION_ITEMS = 10;
 const CALL_TIME_LIMIT_MS = 600_000;
 const CALL_TIME_LIMIT_CLOSE_GRACE_MS = 15_000;
 
+export type VoiceQuota = {
+  limitCalls: number;
+  limitMinutes: number;
+  remainingCalls: number;
+  remainingSeconds: number;
+  resetAt: number;
+};
+
 export function useVoiceConversation() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [partial, setPartial] = useState<PartialTranscript | null>(null);
@@ -155,6 +171,7 @@ export function useVoiceConversation() {
   const [toolActivities, setToolActivities] = useState<ToolActivityItem[]>([]);
   const [debugCopied, setDebugCopied] = useState(false);
   const [debugVersion, setDebugVersion] = useState(0);
+  const [quota, setQuota] = useState<VoiceQuota | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const sessionStartedAtRef = useRef<number | null>(null);
   const turnsRef = useRef<Turn[]>([]);
@@ -281,6 +298,23 @@ export function useVoiceConversation() {
 
   useEffect(() => {
     phaseRef.current = phase;
+  }, [phase]);
+
+  // Load the visitor's remaining free minutes on mount and whenever a call
+  // ends, so the UI always shows an up-to-date allowance.
+  useEffect(() => {
+    if (phase !== "idle") return;
+    let cancelled = false;
+    fetch("/api/voice/quota", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setQuota(data as VoiceQuota);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [phase]);
 
   function updateTurns(next: Turn[] | ((current: Turn[]) => Turn[])) {
@@ -490,6 +524,17 @@ export function useVoiceConversation() {
     }
 
     if (event.type === "reply.debug") return;
+
+    if (event.type === "quota") {
+      setQuota({
+        limitCalls: event.limitCalls,
+        limitMinutes: event.limitMinutes,
+        remainingCalls: event.remainingCalls,
+        remainingSeconds: event.remainingSeconds,
+        resetAt: event.resetAt,
+      });
+      return;
+    }
 
     if (event.type === "error") {
       setError(event.message);
@@ -1359,6 +1404,7 @@ export function useVoiceConversation() {
     micLevel,
     muted,
     phase,
+    quota,
     resetConversation,
     startConversation,
     startNewConversation,

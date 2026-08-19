@@ -44,6 +44,7 @@ export function VoicePhone({ voice }: { voice: VoiceConversation }) {
           error={voice.error}
           hasTurns={voice.turns.length > 0}
           debugCopied={voice.debugCopied}
+          quota={voice.quota}
           onStart={voice.startConversation}
           onStartNew={voice.startNewConversation}
           onToggleMute={voice.toggleMute}

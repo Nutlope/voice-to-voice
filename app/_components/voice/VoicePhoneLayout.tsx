@@ -9,9 +9,11 @@ import { VoiceBrandHeader } from "./BrandHeader";
 import { VoiceMicMeter } from "./Meters";
 import { VoiceNotice } from "./Notice";
 import { VoiceOrbButton } from "./OrbButton";
+import { VoiceQuotaPill } from "./QuotaPill";
 import { VoiceSettingsPanel } from "./SettingsPanel";
 import { VoiceStatusPill } from "./StatusPill";
 import type { VoiceOrbPhase } from "./types";
+import type { VoiceQuota } from "@/app/_hooks/useVoiceConversation";
 
 export type VoicePhoneLayoutProps = {
   phase: VoiceOrbPhase;
@@ -26,6 +28,7 @@ export type VoicePhoneLayoutProps = {
   hasTurns?: boolean;
   debugCopied?: boolean;
   embedded?: boolean;
+  quota?: VoiceQuota | null;
   onStart?: () => void | Promise<void>;
   onStartNew?: () => void | Promise<void>;
   onToggleMute?: () => void;
@@ -46,6 +49,7 @@ export function VoicePhoneLayout({
   hasTurns = false,
   debugCopied,
   embedded = false,
+  quota,
   onStart,
   onStartNew,
   onToggleMute,
@@ -80,6 +84,11 @@ export function VoicePhoneLayout({
           settingsOpen={settingsOpen}
           onSettingsClick={() => setSettingsOpen((open) => !open)}
         />
+        {quota ? (
+          <div className="relative mt-3 flex justify-end">
+            <VoiceQuotaPill quota={quota} />
+          </div>
+        ) : null}
       </header>
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-7 pb-7 pt-6">

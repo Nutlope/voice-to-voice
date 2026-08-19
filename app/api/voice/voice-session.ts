@@ -25,6 +25,7 @@ import { repairTranscript } from "./transcript-repair";
 import type { UserContext } from "./user-context";
 import type { ToolActivity } from "./tools";
 import type { ChatMessage, ClientEvent } from "./voice-utils";
+import { recordVoiceUsage, type QuotaSnapshot } from "./rate-limit";
 
 const TTS_DONE_AFTER_COMMIT_MS = 8_000;
 const TTS_DONE_AFTER_AUDIO_IDLE_MS = 4_000;
@@ -70,10 +71,19 @@ export class VoiceSession {
   private lastRepairedTranscript = "";
   private ttsDoneWatchdog?: NodeJS.Timeout;
   private readonly sessionId = nextSessionId++;
+  private readonly startedAt = Date.now();
+  private usageFlushTimer?: NodeJS.Timeout;
+  private unflushedSeconds = 0;
+  private lastUsageFlushAt = Date.now();
 
   constructor(
     private client: WebSocket,
     private userContext: UserContext = {},
+    private quotaContext?: {
+      fingerprint: string;
+      remainingSeconds: number;
+      quota: QuotaSnapshot;
+    },
   ) {}
 
   start() {
@@ -109,9 +119,63 @@ export class VoiceSession {
       this.close("call time limit reached", 1000);
     }, 600_000);
 
+    if (this.quotaContext) {
+      this.send("quota", this.quotaContext.quota);
+      this.startUsageTracking(this.quotaContext.remainingSeconds);
+    }
+
     this.connectStt();
     this.connectTts();
     this.send("state", { state: "connecting" });
+  }
+
+  // Count down the visitor's remaining daily seconds during the call, flush
+  // consumed time to Redis periodically, and end the call when the daily
+  // minute budget runs out.
+  private startUsageTracking(remainingSeconds: number) {
+    const tickMs = 5_000;
+    this.usageFlushTimer = setInterval(() => {
+      const now = Date.now();
+      const elapsed = (now - this.lastUsageFlushAt) / 1000;
+      this.lastUsageFlushAt = now;
+      this.unflushedSeconds += elapsed;
+
+      const usedTotal = (now - this.startedAt) / 1000;
+      const left = Math.max(0, Math.ceil(remainingSeconds - usedTotal));
+      this.send("quota", {
+        ...this.quotaContext!.quota,
+        remainingSeconds: left,
+      });
+
+      if (left <= 0) {
+        this.send("error", {
+          message:
+            "Daily free minutes used up. Come back tomorrow for more free calls.",
+        });
+        this.send("state", { state: "idle" });
+        this.close("daily minutes limit reached", 1000);
+        return;
+      }
+
+      if (this.unflushedSeconds >= 15) {
+        void this.flushUsage();
+      }
+    }, tickMs);
+  }
+
+  private async flushUsage() {
+    const fingerprint = this.quotaContext?.fingerprint;
+    if (!fingerprint || this.unflushedSeconds <= 0) return;
+    const seconds = this.unflushedSeconds;
+    this.unflushedSeconds = 0;
+    try {
+      await recordVoiceUsage(fingerprint, seconds);
+    } catch (error) {
+      // Never kill a live call because usage accounting failed; re-queue the
+      // seconds so the next flush retries them.
+      this.unflushedSeconds += seconds;
+      this.logError("usage.flush", error);
+    }
   }
 
   private connectStt() {
@@ -919,6 +983,7 @@ export class VoiceSession {
     this.log("session.close", { code, reason });
     this.stopped = true;
     clearInterval(this.keepaliveTimer);
+    clearInterval(this.usageFlushTimer);
     clearTimeout(this.expiryTimer);
     clearTimeout(this.answerTimer);
     clearTimeout(this.speechIdleTimer);
@@ -928,6 +993,7 @@ export class VoiceSession {
     this.chatAbort?.abort();
     this.stt?.close();
     this.tts?.close();
+    void this.flushUsage();
     if (this.client.readyState === WebSocket.OPEN) {
       this.client.close(code, formatCloseReason(reason));
     }
